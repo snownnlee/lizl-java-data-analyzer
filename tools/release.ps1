@@ -780,7 +780,7 @@ try {
             -ExtraArgs @(
                 '-X', 'POST',
                 '-F', ('access_token=' + $config.giteeToken),
-                '-F', ('files[]=@' + $assetRel)
+                '-F', ('file=@' + $assetRel)
             ) `
             -Label '上传 Gitee 附件'
         $null = $script:RemoteChanges.Add(('Gitee 附件 {0} 已上传' -f $assetName))
