@@ -39,6 +39,12 @@ $ConfigPath = Join-Path $RepoRoot 'release.local.json'
 $PomPath    = Join-Path $RepoRoot 'pom.xml'
 $PublishDir = Join-Path $RepoRoot 'publish'
 
+# 若从 Git Bash 环境链路启动，MSYS 会把 "C:\..." 参数改写成 POSIX 路径，致 curl -F 找不到文件；
+# 此变量关闭该转换（在非 MSYS 环境无副作用）
+$env:MSYS_NO_PATHCONV = '1'
+# 附件走相对路径上传，统一以仓库根为基准
+Set-Location -LiteralPath $RepoRoot
+
 $GitHubRemote = 'github'
 $GiteeRemote  = 'gitee'
 $Branch       = 'main'
@@ -640,92 +646,145 @@ try {
 
     # ---- 阶段 4：创建 Release ---------------------------------------------
 
-    Step '创建 GitHub Release'
-    $payload = [ordered]@{
-        tag_name   = $tag
-        name       = $tag
-        body       = $commitBody
-        draft      = $false
-        prerelease = $false
-    } | ConvertTo-Json -Compress
+    Step '创建 GitHub Release（已存在则复用）'
+    # 幂等：上次运行可能已创建过 Release（如附件上传失败后重跑）
+    $existingBody = $null
+    try { $existingBody = Invoke-Http -Url ('https://api.github.com/repos/{0}/{1}/releases/tags/{2}' -f $githubSlug.Owner, $githubSlug.Repo, $tag) -ExtraArgs @('-H', ('Authorization: Bearer ' + $config.githubToken), '-H', 'Accept: application/vnd.github+json') -Label '查询已有 GitHub Release' }
+    catch { }
+    $createBody = $null
+    $createdNow = $false
+    if ($existingBody -and ($existingBody | ConvertFrom-Json).id) {
+        $createBody = $existingBody
+        Complete-Step ('复用已有 id=' + ($createBody | ConvertFrom-Json).id)
+    }
+    else {
+        $payload = [ordered]@{
+            tag_name   = $tag
+            name       = $tag
+            body       = $commitBody
+            draft      = $false
+            prerelease = $false
+        } | ConvertTo-Json -Compress
 
-    $tempJson = [IO.Path]::Combine([IO.Path]::GetTempPath(), ('release-' + $tag + '.json'))
-    [IO.File]::WriteAllText($tempJson, $payload, (New-Object Text.UTF8Encoding($false)))
+        $tempJson = [IO.Path]::Combine([IO.Path]::GetTempPath(), ('release-' + $tag + '.json'))
+        [IO.File]::WriteAllText($tempJson, $payload, (New-Object Text.UTF8Encoding($false)))
 
-    $createBody = Invoke-Http `
-        -Url ('https://api.github.com/repos/{0}/{1}/releases' -f $githubSlug.Owner, $githubSlug.Repo) `
-        -ExtraArgs @(
-            '-X', 'POST',
-            '-H', ('Authorization: Bearer ' + $config.githubToken),
-            '-H', 'Accept: application/vnd.github+json',
-            '-H', 'X-GitHub-Api-Version: 2022-11-28',
-            '-H', 'Content-Type: application/json; charset=utf-8',
-            '--data-binary', ('@' + $tempJson)
-        ) `
-        -Label '创建 GitHub Release'
+        $createBody = Invoke-Http `
+            -Url ('https://api.github.com/repos/{0}/{1}/releases' -f $githubSlug.Owner, $githubSlug.Repo) `
+            -ExtraArgs @(
+                '-X', 'POST',
+                '-H', ('Authorization: Bearer ' + $config.githubToken),
+                '-H', 'Accept: application/vnd.github+json',
+                '-H', 'X-GitHub-Api-Version: 2022-11-28',
+                '-H', 'Content-Type: application/json; charset=utf-8',
+                '--data-binary', ('@' + $tempJson)
+            ) `
+            -Label '创建 GitHub Release'
+        Remove-Item -LiteralPath $tempJson -Force -ErrorAction SilentlyContinue
+        $createdNow = $true
+    }
 
     $createObj = $createBody | ConvertFrom-Json
     $githubReleaseId = [string]$createObj.id
     Assert-True (-not [string]::IsNullOrWhiteSpace($githubReleaseId)) 'GitHub Release 响应中缺少 id' $createBody
-    $null = $script:RemoteChanges.Add(('GitHub Release {0} 已创建（id={1}）' -f $tag, $githubReleaseId))
-    $null = $script:RollbackHints.Add(('curl.exe --ssl-no-revoke -X DELETE -H "Authorization: Bearer <githubToken>" https://api.github.com/repos/{0}/{1}/releases/{2}' -f $githubSlug.Owner, $githubSlug.Repo, $githubReleaseId))
-    Remove-Item -LiteralPath $tempJson -Force -ErrorAction SilentlyContinue
-    Complete-Step ('id=' + $githubReleaseId)
+    if ($createdNow) {
+        $null = $script:RemoteChanges.Add(('GitHub Release {0} 已创建（id={1}）' -f $tag, $githubReleaseId))
+        $null = $script:RollbackHints.Add(('curl.exe --ssl-no-revoke -X DELETE -H "Authorization: Bearer <githubToken>" https://api.github.com/repos/{0}/{1}/releases/{2}' -f $githubSlug.Owner, $githubSlug.Repo, $githubReleaseId))
+    }
+    Complete-Step ('id=' + $githubReleaseId + $(if (-not $createdNow) { '（复用）' } else { '' }))
 
     Step ('上传附件 {0}' -f $assetName)
-    $uploadUrl = 'https://uploads.github.com/repos/{0}/{1}/releases/{2}/assets?name={3}' -f `
-        $githubSlug.Owner, $githubSlug.Repo, $githubReleaseId, $assetName
-    $uploadBody = Invoke-Http -Url $uploadUrl -MaxTime 1800 -ExtraArgs @(
-        '-X', 'POST',
-        '-H', ('Authorization: Bearer ' + $config.githubToken),
-        '-H', 'Accept: application/vnd.github+json',
-        '-H', 'Content-Type: application/java-archive',
-        '--data-binary', ('@' + $assetPath)
-    ) -Label '上传 GitHub 附件'
-
-    $uploadObj = $uploadBody | ConvertFrom-Json
-    $uploadedSize = [long]$uploadObj.size
-    $null = $script:RemoteChanges.Add(('GitHub 附件 {0} 已上传（{1:N0} 字节）' -f $assetName, $uploadedSize))
-    Complete-Step ('{0:N0} 字节' -f $uploadedSize)
-
-    Step '创建 Gitee Release'
-    # 提交信息可能多行，经临时文件传给 --data-urlencode，避免命令行转义问题
-    $tempBody = [IO.Path]::Combine([IO.Path]::GetTempPath(), ('release-' + $tag + '-body.txt'))
-    [IO.File]::WriteAllText($tempBody, $commitBody, (New-Object Text.UTF8Encoding($false)))
-
-    $giteeBody = Invoke-Http `
-        -Url ('https://gitee.com/api/v5/repos/{0}/{1}/releases' -f $giteeSlug.Owner, $giteeSlug.Repo) `
-        -ExtraArgs @(
+    # 幂等：同名且同大小的附件已存在则跳过
+    $existingAsset = $createObj.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
+    if ($existingAsset -and [long]$existingAsset.size -eq $jarInfo.Length) {
+        Skip-Step ('远端已存在同名附件（{0:N0} 字节）' -f $existingAsset.size)
+    }
+    else {
+        if ($existingAsset) {
+            # 同名但大小不一致（可能上次传了一半）：先删旧附件再传
+            $null = Invoke-Http -Url ('https://api.github.com/repos/{0}/{1}/releases/assets/{2}' -f $githubSlug.Owner, $githubSlug.Repo, $existingAsset.id) -ExtraArgs @('-X', 'DELETE', '-H', ('Authorization: Bearer ' + $config.githubToken)) -Label '删除旧附件'
+        }
+        $uploadUrl = 'https://uploads.github.com/repos/{0}/{1}/releases/{2}/assets?name={3}' -f `
+            $githubSlug.Owner, $githubSlug.Repo, $githubReleaseId, $assetName
+        $uploadBody = Invoke-Http -Url $uploadUrl -MaxTime 1800 -ExtraArgs @(
             '-X', 'POST',
-            '--data-urlencode', ('access_token=' + $config.giteeToken),
-            '--data-urlencode', ('tag_name=' + $tag),
-            '--data-urlencode', ('name=' + $tag),
-            '--data-urlencode', ('body@' + $tempBody),
-            '--data-urlencode', ('target_commitish=' + $Branch)
-        ) `
-        -Label '创建 Gitee Release'
+            '-H', ('Authorization: Bearer ' + $config.githubToken),
+            '-H', 'Accept: application/vnd.github+json',
+            '-H', 'Content-Type: application/java-archive',
+            '--data-binary', ('@' + $assetPath)
+        ) -Label '上传 GitHub 附件'
+
+        $uploadObj = $uploadBody | ConvertFrom-Json
+        $uploadedSize = [long]$uploadObj.size
+        $null = $script:RemoteChanges.Add(('GitHub 附件 {0} 已上传（{1:N0} 字节）' -f $assetName, $uploadedSize))
+        Complete-Step ('{0:N0} 字节' -f $uploadedSize)
+    }
+
+    Step '创建 Gitee Release（已存在则复用）'
+    $existingGitee = $null
+    try { $existingGitee = Invoke-Http -Url ('https://gitee.com/api/v5/repos/{0}/{1}/releases/tags/{2}' -f $giteeSlug.Owner, $giteeSlug.Repo, $tag) -Label '查询已有 Gitee Release' }
+    catch { }
+    $giteeBody = $null
+    $giteeCreatedNow = $false
+    if ($existingGitee -and [string]($existingGitee | ConvertFrom-Json).tag_name -eq $tag) {
+        $giteeBody = $existingGitee
+        Complete-Step ('复用已有 id=' + ($giteeBody | ConvertFrom-Json).id)
+    }
+    else {
+        # 提交信息可能多行，经临时文件传给 --data-urlencode，避免命令行转义问题
+        $tempBody = [IO.Path]::Combine([IO.Path]::GetTempPath(), ('release-' + $tag + '-body.txt'))
+        [IO.File]::WriteAllText($tempBody, $commitBody, (New-Object Text.UTF8Encoding($false)))
+
+        $giteeBody = Invoke-Http `
+            -Url ('https://gitee.com/api/v5/repos/{0}/{1}/releases' -f $giteeSlug.Owner, $giteeSlug.Repo) `
+            -ExtraArgs @(
+                '-X', 'POST',
+                '--data-urlencode', ('access_token=' + $config.giteeToken),
+                '--data-urlencode', ('tag_name=' + $tag),
+                '--data-urlencode', ('name=' + $tag),
+                '--data-urlencode', ('body@' + $tempBody),
+                '--data-urlencode', ('target_commitish=' + $Branch)
+            ) `
+            -Label '创建 Gitee Release'
+        Remove-Item -LiteralPath $tempBody -Force -ErrorAction SilentlyContinue
+        $giteeCreatedNow = $true
+    }
 
     $giteeObj = $giteeBody | ConvertFrom-Json
     Assert-True ([string]$giteeObj.tag_name -eq $tag) `
         ('Gitee Release 返回的 tag_name 不是 {0}' -f $tag) $giteeBody
     $giteeReleaseId = [string]$giteeObj.id
-    $null = $script:RemoteChanges.Add(('Gitee Release {0} 已创建（id={1}）' -f $tag, $giteeReleaseId))
-    $null = $script:RollbackHints.Add(('curl.exe --ssl-no-revoke -X DELETE "https://gitee.com/api/v5/repos/{0}/{1}/releases/{2}?access_token=<giteeToken>"' -f $giteeSlug.Owner, $giteeSlug.Repo, $giteeReleaseId))
-    Remove-Item -LiteralPath $tempBody -Force -ErrorAction SilentlyContinue
-    Complete-Step ('id=' + $giteeReleaseId)
+    if ($giteeCreatedNow) {
+        $null = $script:RemoteChanges.Add(('Gitee Release {0} 已创建（id={1}）' -f $tag, $giteeReleaseId))
+        $null = $script:RollbackHints.Add(('curl.exe --ssl-no-revoke -X DELETE "https://gitee.com/api/v5/repos/{0}/{1}/releases/{2}?access_token=<giteeToken>"' -f $giteeSlug.Owner, $giteeSlug.Repo, $giteeReleaseId))
+    }
+    Complete-Step ('id=' + $giteeReleaseId + $(if (-not $giteeCreatedNow) { '（复用）' } else { '' }))
 
     Step ('上传 Gitee 附件 {0}' -f $assetName)
-    $giteeUpload = Invoke-Http `
-        -Url ('https://gitee.com/api/v5/repos/{0}/{1}/releases/{2}/attach_files' -f $giteeSlug.Owner, $giteeSlug.Repo, $giteeReleaseId) `
-        -MaxTime 1800 `
-        -ExtraArgs @(
-            '-X', 'POST',
-            '-F', ('access_token=' + $config.giteeToken),
-            '-F', ('files[]=@' + $assetPath)
-        ) `
-        -Label '上传 Gitee 附件'
-    $null = $script:RemoteChanges.Add(('Gitee 附件 {0} 已上传' -f $assetName))
-    Complete-Step $assetName
+    # 幂等：Release 详情里已带同名附件则跳过（Gitee assets 可能不返回，视为需上传）
+    $giteeAsset = $null
+    if ($giteeObj.assets) {
+        $giteeAsset = $giteeObj.assets | Where-Object { [string]$_.name -eq $assetName -or [string]$_.path -like ('*' + $assetName) } | Select-Object -First 1
+    }
+    if ($giteeAsset) {
+        Skip-Step '远端已存在同名附件'
+    }
+    else {
+        # -F 的文件参数用相对路径（相对仓库根，即当前目录）：避免任何环境下盘符路径被改写
+        $assetRel = 'publish/' + $assetName
+        Assert-True (Test-Path -LiteralPath (Join-Path (Get-Location).Path $assetRel)) ('附件不存在：{0}' -f $assetRel)
+        $giteeUpload = Invoke-Http `
+            -Url ('https://gitee.com/api/v5/repos/{0}/{1}/releases/{2}/attach_files' -f $giteeSlug.Owner, $giteeSlug.Repo, $giteeReleaseId) `
+            -MaxTime 1800 `
+            -ExtraArgs @(
+                '-X', 'POST',
+                '-F', ('access_token=' + $config.giteeToken),
+                '-F', ('files[]=@' + $assetRel)
+            ) `
+            -Label '上传 Gitee 附件'
+        $null = $script:RemoteChanges.Add(('Gitee 附件 {0} 已上传' -f $assetName))
+        Complete-Step $assetName
+    }
 
     # ---- 阶段 5：回查 -----------------------------------------------------
 
