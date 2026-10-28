@@ -1,0 +1,17 @@
+# 本项目的行尾约定：文本文件一律 CRLF 存库与检出。
+# 写成显式规则，避免不同机器 core.autocrlf 设置不同导致整文件 diff。
+* text=auto eol=crlf
+
+# Shell 脚本必须保持 LF，否则在 Linux / macOS 下 shebang 会失效。
+*.sh text eol=lf
+
+# 二进制文件不做行尾转换。
+*.jar binary
+*.class binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

@@ -1,0 +1,3 @@
+cn.lizl.project.tool.analysis.spring.beans.BeansAutoConfiguration
+cn.lizl.project.tool.analysis.spring.interceptor.InterceptorAutoConfiguration
+cn.lizl.project.tool.analysis.spring.server.ServerAutoConfiguration

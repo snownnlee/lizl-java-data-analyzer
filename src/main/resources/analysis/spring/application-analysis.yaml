@@ -1,0 +1,133 @@
+# ==================================================================
+# Lizl Java Data Analyzer 完整配置示例
+#
+# 三块独立配置，互不回落：
+#   server.*       —— 共用 HTTP 服务的传输层（一个端口、一套鉴权）
+#   beans.*        —— bean 采集通道：采集什么、怎么分析、产物放哪、输出什么格式
+#   interceptor.*  —— 请求拦截器通道：字段与 beans 段一一对应，但不读 beans 的任何键
+#
+# 本文件每一项都带注释；键名 kebab 化自属性类的 setter（setMaxDepth → max-depth）。
+#
+# 使用方式：先把本文件复制到你项目的 src/main/resources/ 下（或只复制需要的段），再任选其一：
+#   1. Spring Boot: --spring.profiles.active=analysis 加载复制过去的 application-analysis.yaml
+#   2. 复制需要的段落到 application.yaml
+#   3. 在 application.yaml 里显式引入复制过去的文件（不激活 profile 也能生效）：
+#        spring:
+#          config:
+#            import: optional:classpath:application-analysis.yaml
+# 注：本文件随 jar 发布、也可直接被引入（import: optional:classpath:analysis/spring/application-analysis.yaml），
+#     但改配置时仍建议复制一份到项目里维护，避免依赖升级覆盖你的修改。
+#
+# 四个开关，各管一段：
+#   server.enable       —— 起不起 HTTP 服务
+#   beans.enable        —— 装不装 bean 采集（+ /beans 端点组）
+#   interceptor.enable  —— 装不装拦截器通道（+ /interceptor 端点组，启动期一次性）
+#   interceptor.active  —— 通道装好后要不要真的捕获（运行期可热改）
+# 端点组是否 404 只看对应通道的 enable；server 起着但通道没装配，该组一律 404。
+# 通道开着但 server 没开时：仍会采集/捕获并落盘，只是没有网页入口（bean 采集在 lazy=true 下不会产生任何产物）。
+# ==================================================================
+
+cn:
+  lizl:
+    java-data-analyzer:
+
+      # ================= HTTP 服务（两个通道共用） =================
+      # 一台 server、一个端口、一套鉴权；两个通道各自决定自己的端点组挂不挂
+      server:
+        enable: true                                # 是否启动 HTTP 服务；默认 false，需显式开启（enable / enabled 两种写法都认）
+        port: 18110                                 # 监听端口；不配置用 18080，0 = 由系统分配（端口被占用会直接让宿主启动失败）
+        bind-address: 127.0.0.1                     # 绑定地址；默认 127.0.0.1 仅本机可访问，生产环境勿改 0.0.0.0
+        path-prefix: /lizl-java-data-analyzer       # 所有端点的公共路径前缀；不配置用 /lizl-java-data-analyzer
+        token: change-me-in-prod                    # 访问令牌；配置后须带 ?token=xxx 或请求头 X-Analysis-Token（会进浏览器历史，优先用 Basic）
+        auth-user: admin                            # HTTP Basic 用户名；与 auth-password 同时配置才启用
+        auth-password: change-me-in-prod            # HTTP Basic 密码；缺任一项则不启用；该字段不会被打进日志
+
+      # ================= beans 通道 =================
+      # 采集容器里的 Bean 并分析其对象结构；与 interceptor 段完全独立取值
+      beans:
+        enable: true                                # 是否装配 bean 采集通道；默认 false（还可写 enabled）
+        eager-to-analyze: true                      # true = 每个 Bean 初始化后立即登记；false = 全部单例就绪后统一登记
+        lazy: true                                  # true = 只登记、首次访问 /bean/{name} 才分析；false = 登记后立即异步分析
+        ignore-bean-names:                          # 按 Bean 名称精确忽略（Set，全名相等才命中）
+        ignore-bean-name-pattern: '^(internal|temp)[-.].*'  # 按 Bean 名称正则忽略；String.matches 全串匹配（不是 find 子串）
+        ignore-bean-packages:                       # 按类名包前缀忽略；类、父类、父接口都会比对
+        output-root-dir: ./analysis-output/beans    # 本通道产物根目录；不配置用全局默认 ~/cn.lizl.project.tool.analysis-result
+        render-type: HTML                           # 产物格式：HTML / PUML / PUML_HTML / MERMAID / MERMAID_HTML；不配置沿用全局默认 HTML
+        # 包规则：与全局默认规则叠加（判定顺序 运行级 include → 运行级 exclude → 全局 include → 全局 exclude）
+        #   只接受「非空且不含空白项」的数组：留空 / [] / 不写 三者等价（都表示本层不追加规则）
+        #   空白项会被过滤（"" 作为前缀会匹配一切类名）
+        #   全局默认排除的 java./javax./jakarta./jdk./sun. 删不掉；要纳入它们用 include
+        common-exclude-packages:                    # 追加的排除包（与全局默认叠加，只能加不能删）；下面整份清单是常用排除项
+          - org.slf4j.                     # 常见日志门面/实现：字段全是静态 Logger，展开无信息量
+          - org.apache.logging.log4j.
+          - org.apache.commons.logging.
+          - ch.qos.logback.
+          - org.apache.log4j.
+          - org.jboss.logging.
+          - org.springframework.           # 框架设施：ApplicationContext 等字段会拖进整个容器对象图
+          - io.netty.                      # 响应式栈：Channel/Pipeline/Buffer 对象图极深且全是框架设施
+          - reactor.
+          - org.reactivestreams.
+          - net.bytebuddy.                 # 反射/字节码/测试框架：代理类字段全是框架内部结构
+          - org.objenesis.
+          - org.junit.
+          - org.mockito.
+        common-include-packages:                    # 额外纳入分析的包；判定在全局 exclude 之前，能抢回被默认排除的包
+        analyze-static-field: false                 # 是否分析静态字段；不配置用全局默认 false
+        should-analyze-null-value: true             # 是否分析值为 null 的字段；默认 true（关掉可让报告只剩有值的字段）
+        max-depth: 7                                # 最大分析深度；默认 7；超过该深度只显示类型并提示「已达到最大解析深度」
+        max-node-count: 2000                        # 单次分析最多新建节点数；默认 2000，≤0 不限制（防大对象图撑爆报告）
+        analysis-timeout-millis: 0                  # 单次分析耗时上限（毫秒）；默认 0 = 不限制
+        # 分析模式：
+        #   ONLY_CLASS       只按类型分析，不看实例值
+        #   ONLY_INSTANCE    只按实例分析，没有实例的字段显示为 null
+        #   AUTO_BY_CONFIG   有实例值按实例、否则按类型；null 字段是否分析由 should-analyze-null-value 决定
+        #   AUTO_BY_COMPUTE  字段所在类型有实例则只分析实例值，否则只分析类型
+        analysis-mode: AUTO_BY_COMPUTE              # 不配置时沿用全局默认 AUTO_BY_COMPUTE；此处显式写出便于对照
+        value-display-length-limit: 800             # 单个值最多显示多少字符；默认 800（容器超出时追加 ...；0 = 空串，负数不限制）
+        collections-analyzing-count: 10             # 每个集合/数组/Map 最多展开的元素个数；默认 10
+        default-to-expand: false                    # HTML 折叠树默认是否展开；默认 false（收起，只显示类标题）
+        add-to-string-field: false                  # 是否给每个节点追加 toString 字段；默认 false（会真实调用一次 toString()，本库内部类除外）
+        enable-collection-simple-view: true         # 集合是否按元素展开的紧凑视图；默认 true（false 会把集合当普通对象展开内部结构）
+        mask-sensitive-values: false                # 字段名命中 password/passwd/pwd/secret/token/credential/apikey/api_key/authorization 时值显示为 ***；默认 true
+
+      # ================= 请求拦截器通道 =================
+      # 字段与 beans 段一一对应，但彼此独立：本段不读 beans 的任何值（连 render-type、输出目录也不回落）
+      interceptor:
+        enable: true                                # 装配开关：包装参数解析器 + 控制 Bean + /interceptor 端点；默认 false，只在启动期生效
+        active: true                                # 运行期捕获开关：默认 false，需显式开启；可经管理页或 POST /interceptor?active=true 热改（仅内存态）
+        include-paths:                              # Ant 风格白名单；不配置或空 = 拦截所有请求；下面一条是示例
+        exclude-paths:                              # Ant 风格黑名单；优先于白名单
+        output-queue-capacity: 64                   # 异步写盘队列容量；默认 64，满载短等待后降级为调用线程同步落盘（产物不丢）
+        output-retention: 3000                      # 每个日期目录各自保留的产物上限；默认 3000，≤0 不限制
+        output-root-dir: ./analysis-output/interceptor  # 本通道产物根目录（其下按日期建子目录）；默认 ~/cn.lizl.project.tool.analysis-result/interceptor
+        render-type: HTML                           # 产物格式；本通道自带默认 HTML，不继承 beans 段的 render-type
+        # 包规则同上：非空才接受、空白项过滤、与全局规则叠加（不读 beans 段的规则）
+        common-exclude-packages:                    # 追加的排除包，只作用于本通道产物
+          - org.slf4j.                     # 常见日志门面/实现：字段全是静态 Logger，展开无信息量
+          - org.apache.logging.log4j.
+          - org.apache.commons.logging.
+          - ch.qos.logback.
+          - org.apache.log4j.
+          - org.jboss.logging.
+          - org.springframework.           # 框架设施：ApplicationContext 等字段会拖进整个容器对象图
+          - io.netty.                      # 响应式栈：Channel/Pipeline/Buffer 对象图极深且全是框架设施
+          - reactor.
+          - org.reactivestreams.
+          - net.bytebuddy.                 # 反射/字节码/测试框架：代理类字段全是框架内部结构
+          - org.objenesis.
+          - org.junit.
+          - org.mockito.
+        common-include-packages:                    # 额外纳入分析的包，同样只作用于本通道
+        analyze-static-field: false                 # 是否分析静态字段；默认 false；不读 beans 段
+        should-analyze-null-value: true             # 是否分析值为 null 的字段；默认 true
+        max-depth: 5                                # 最大分析深度；这里取 5（请求高频触发，宜比 beans 段浅）；不配置则用全局默认 7
+        max-node-count: 1000                        # 单次分析最多新建节点数；这里取 1000；不配置用全局默认 2000，≤0 不限制
+        analysis-timeout-millis: 3000               # 单次分析耗时上限（毫秒）；不配置也用安全默认 3000（请求线程同步分析，防 toString 卡死线程池）
+        analysis-mode: ONLY_INSTANCE                # 分析模式；不配置沿用全局 AUTO_BY_COMPUTE
+        value-display-length-limit: 800             # 单个值最多显示多少字符；默认 800（容器超出时追加 ...；0 = 空串，负数不限制）
+        collections-analyzing-count: 10             # 每个集合最多展开的元素个数；默认 10（请求体常带大集合，宜调小）
+        default-to-expand: false                    # 产物页默认展开；默认 false
+        add-to-string-field: false                  # 是否给每个节点追加 toString 字段；默认 false（会真实调用一次 toString()，本库内部类除外）
+        enable-collection-simple-view: true         # 集合是否按元素展开的紧凑视图；默认 true
+        mask-sensitive-values: true                 # 敏感字段值脱敏为 ***；默认 true（登录 DTO 等含凭证入参务必保持开启）

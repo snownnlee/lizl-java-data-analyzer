@@ -1,0 +1,17 @@
+前端渲染引擎来源（由 scripts/fetch-frontend-assets.py 生成，勿手工修改）
+
+- mermaid-11.17.2.min.js
+  package: mermaid@11.17.2 (dist/mermaid.min.js, 普通脚本，暴露 globalThis.mermaid)
+  license: MIT
+  url: https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js
+
+- plantuml-1.2026.8.js
+  package: @plantuml/core@1.2026.8 (plantuml.js, TeaVM 编译，改写后暴露 globalThis.PlantUML)
+  license: MIT（>= 1.2026.6；更早版本为 GPL-3.0-or-later）
+  url: https://cdn.jsdelivr.net/npm/@plantuml/core@1.2026.8/plantuml.js
+  modified: 尾部 export 改写为 globalThis.PlantUML 赋值，并整体包进 IIFE（file:// 不支持 ES 模块；IIFE 用于隔离顶层短名）
+
+- viz-global-1.2026.8.js
+  package: @plantuml/core@1.2026.8 (viz-global.js, Graphviz 布局引擎，普通脚本)
+  license: MIT（随 @plantuml/core 发布；内嵌 Viz.js / Graphviz）
+  url: https://cdn.jsdelivr.net/npm/@plantuml/core@1.2026.8/viz-global.js

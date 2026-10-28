@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjMGEwZTE3Ii8+PGVsbGlwc2UgY3g9IjEwIiBjeT0iMTAiIHJ4PSI2IiByeT0iNCIgZmlsbD0iI2M2YzQ1ZSIgb3BhY2l0eT0iMC45Ii8+PGVsbGlwc2UgY3g9IjIyIiBjeT0iMTAiIHJ4PSI2IiByeT0iNCIgZmlsbD0iIzAwZGRmZiIgb3BhY2l0eT0iMC45Ii8+PGVsbGlwc2UgY3g9IjE2IiBjeT0iMjIiIHJ4PSI2IiByeT0iNCIgZmlsbD0iIzY0OTVlZCIgb3BhY2l0eT0iMC45Ii8+PGxpbmUgeDE9IjEwIiB5MT0iMTQiIHgyPSIxNiIgeTI9IjE4IiBzdHJva2U9IiNjNmM0NWUiIHN0cm9rZS13aWR0aD0iMS41IiBvcGFjaXR5PSIwLjYiLz48bGluZSB4MT0iMjIiIHkxPSIxNCIgeDI9IjE2IiB5Mj0iMTgiIHN0cm9rZT0iIzAwZGRmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIG9wYWNpdHk9IjAuNiIvPjwvc3ZnPg==">
+    <title>Interceptor</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei UI", ui-rounded, sans-serif;
+        }
+
+        body {
+            background-color: #0a0e17;
+            color: #c1c1c1;
+            font-size: small;
+            padding: 20px;
+            padding-top: 300px;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0) translateX(0); opacity: 0.5; }
+            25% { transform: translateY(-50px) translateX(50px); opacity: 0.8; }
+            50% { transform: translateY(-25px) translateX(-50px); opacity: 0.5; }
+            75% { transform: translateY(50px) translateX(25px); opacity: 0.8; }
+            100% { transform: translateY(0) translateX(0); opacity: 0.5; }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding: 16px;
+            background: linear-gradient(45deg, #ff00ff22, #00ffff22, #ffaa0022, #ff00ff22);
+            backdrop-filter: blur(1px);
+            box-shadow: inset 0 0 20px #6495edaa;
+            background-color: rgba(10, 14, 23, 0.72);
+        }
+
+        h1 {
+            align-self: center;
+            background: linear-gradient(90deg, #ff00ff, #00ffff, #ffaa00, #64ff9e, #6495ed);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            font-size: 1.25rem;
+            margin: 0;
+            font-weight: 700;
+            letter-spacing: 1px;
+            filter: drop-shadow(0 0 6px rgba(100, 150, 255, 0.45));
+        }
+
+        .memo {
+            align-self: center;
+            margin: 0;
+            color: #8fb4e0;
+            font-size: 12px;
+            letter-spacing: 0.3px;
+            opacity: 0.85;
+            text-align: center;
+        }
+
+        .op-status {
+            display: none;
+            flex-basis: 100%;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+
+        .op-status.show {
+            display: block;
+        }
+
+        .op-status.err {
+            color: #ff6b6b;
+        }
+
+        .op-status.ok {
+            color: #64ff9e;
+        }
+
+        .control-panel {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: rgba(20, 28, 44, 0.8);
+            border: 3px solid rgba(100, 150, 255, 0.4);
+            border-radius: 8px;
+            padding: 12px 16px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .panel-label {
+            color: #a0c8ff;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .toggle-btn {
+            padding: 6px 18px;
+            border-radius: 6px;
+            border: 2px solid rgba(100, 255, 158, 0.7);
+            background: rgba(20, 60, 40, 0.6);
+            color: #64ff9e;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: box-shadow .3s, border-color .3s, color .3s;
+        }
+
+        .toggle-btn.on {
+            border-color: rgba(255, 170, 0, 0.8);
+            background: rgba(70, 50, 14, 0.6);
+            color: #ffaa00;
+        }
+
+        .toggle-btn:hover {
+            box-shadow: 0 0 14px rgba(100, 150, 255, 0.5);
+            filter: brightness(1.15);
+        }
+
+        .rule-input {
+            width: 220px;
+            padding: 7px 12px;
+            color: #a0c8ff;
+            background: rgba(10, 15, 25, 0.9);
+            border: 2px solid rgba(100, 150, 255, 0.35);
+            border-radius: 6px;
+            outline: none;
+            font-family: inherit;
+            font-size: 12px;
+            letter-spacing: 0.4px;
+            transition: border-color .3s, box-shadow .3s;
+        }
+
+        .rule-input:focus {
+            color: #ffffff;
+            border-color: rgba(0, 200, 255, 0.8);
+            box-shadow: 0 0 12px rgba(0, 150, 255, 0.35);
+        }
+
+        .rule-input::placeholder {
+            color: rgba(160, 200, 255, 0.5);
+        }
+
+        .search-box {
+            width: 100%;
+            max-width: 650px;
+            position: relative;
+            align-self: center;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 24px;
+            padding-right: 44px;
+            color: #a0c8ff;
+            background: rgba(20, 28, 44, 0.8);
+            border: 3px solid rgba(100, 150, 255, 0.4);
+            border-radius: 8px;
+            outline: none;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transition: color .4s, border-color .4s, box-shadow .4s;
+        }
+
+        .search-box input:focus {
+            color: #ffffff;
+            border-color: rgba(0, 200, 255, 0.8);
+            box-shadow: 0 8px 25px rgba(0, 100, 255, 0.4),
+            0 0 20px rgba(0, 150, 255, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .search-box input::placeholder {
+            color: rgba(160, 200, 255, 0.55);
+            font-weight: 400;
+        }
+
+        .search-box::after {
+            content: "🔍";
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1rem;
+            color: #c6c45e;
+            pointer-events: none;
+        }
+
+        .apply-btn {
+            padding: 7px 16px;
+            border-radius: 6px;
+            border: 2px solid rgba(0, 200, 255, 0.6);
+            background: rgba(16, 40, 60, 0.7);
+            color: #00ffff;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: box-shadow .3s, filter .3s;
+        }
+
+        .apply-btn:hover {
+            box-shadow: 0 0 14px rgba(0, 200, 255, 0.55);
+            filter: brightness(1.15);
+        }
+
+        .stats {
+            display: flex;
+            gap: 14px;
+            color: #c6c45e;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+        }
+
+        .stats span b {
+            color: #a0c8ff;
+        }
+
+        .stats .err b {
+            color: #ff5555;
+        }
+
+        .history-toggle {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: #a0c8ff;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .history-toggle input {
+            accent-color: #6495ed;
+            cursor: pointer;
+        }
+
+        .list-container {
+            margin: 0;
+            padding: 0;
+            border: 3px solid #6495ed99;
+            background-color: rgba(10, 15, 25, 0.8);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            transition: box-shadow .3s, border-color .3s;
+            position: relative;
+            overflow: hidden;
+            min-height: 320px;
+        }
+
+        .list-container:hover {
+            box-shadow: 0 0 20px rgba(100, 149, 237, 0.3);
+            border-color: #00bfff;
+        }
+
+        .list-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #ff00ff, #00ffff, #ffaa00, #64ff9e, #6495ed);
+        }
+
+        .outputs-list {
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+        }
+
+        .output-item {
+            --accent: 0, 255, 255;
+            display: flex;
+            position: relative;
+            margin: 10px 10px 10px 20px;
+            border: 2px solid rgba(44, 61, 89, 0.8);
+            border-left: 3px solid rgba(var(--accent), 0.85);
+            border-radius: 6px;
+            box-shadow:
+            inset 0 0 14px #4433ff99,
+            inset 16px -6px 18px -14px rgba(var(--accent), 0.65);
+            transition: border-color .3s, box-shadow .3s, transform .3s;
+        }
+
+        .output-item::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(225deg, rgba(var(--accent), 0.8), transparent 62%);
+            border-radius: 0 4px 0 0;
+            opacity: .5;
+            transition: opacity .3s;
+        }
+
+        .output-item:hover {
+            border-color: rgba(var(--accent), 0.55);
+            border-left-color: rgb(var(--accent));
+            box-shadow:
+            inset 0 0 14px #4433ff99,
+            inset 16px -6px 22px -12px rgba(var(--accent), 0.95),
+            0 0 18px rgba(var(--accent), 0.22),
+            0 6px 18px rgba(0, 0, 0, 0.35);
+            transform: translateX(3px);
+        }
+
+        .output-item:hover::after {
+            opacity: 1;
+        }
+
+        .output-item:nth-child(5n + 1) { --accent: 0, 255, 255; }
+        .output-item:nth-child(5n + 2) { --accent: 100, 150, 255; }
+        .output-item:nth-child(5n + 3) { --accent: 255, 0, 255; }
+        .output-item:nth-child(5n + 4) { --accent: 255, 170, 0; }
+        .output-item:nth-child(5n + 5) { --accent: 100, 255, 158; }
+
+        .output-item a {
+            display: block;
+            padding: 6px 10px;
+            color: rgb(var(--accent));
+            font-weight: bold;
+            font-size: 13px;
+            text-decoration: none;
+            word-break: break-all;
+            user-select: all;
+            transition: color .3s, text-shadow .3s;
+        }
+
+        .output-item a::before {
+            content: '';
+            display: inline-block;
+            width: 0;
+            height: 0;
+            margin-right: 9px;
+            border-left: 5px solid rgba(var(--accent), 0.9);
+            border-top: 4px solid transparent;
+            border-bottom: 4px solid transparent;
+            vertical-align: middle;
+            transition: transform .3s;
+        }
+
+        .output-item:hover a::before {
+            transform: translateX(3px);
+        }
+
+        .output-item a:hover {
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(var(--accent), 0.75);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #a0c8ff;
+            font-size: 14px;
+            background: rgba(20, 28, 44, 0.5);
+            border-radius: 6px;
+            border: 1px dashed rgba(100, 149, 237, 0.3);
+            margin: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: #c6c45e;
+            font-size: 14px;
+        }
+
+        .loading::after {
+            content: "";
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(198, 196, 94, 0.2);
+            border-radius: 50%;
+            border-top-color: #c6c45e;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 15px;
+            box-shadow: 0 0 15px rgba(198, 196, 94, 0.5);
+        }
+
+        .count-display {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(29, 38, 59, 0.9);
+            color: #c6c45e;
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: 1px solid rgba(100, 149, 237, 0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            font-size: 14px;
+            font-weight: 700;
+            z-index: 999;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 1.1rem; }
+            body { padding-top: 300px; }
+            .rule-input { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+<div class="particles" id="particles"></div>
+<div class="container">
+    <header>
+        <h1>Interceptor</h1>
+        <p class="memo">改动仅内存态：开关与路径热改立即生效，应用重启后恢复配置文件里的口径</p>
+        <div class="control-panel">
+            <button id="toggleBtn" class="toggle-btn" type="button">加载中…</button>
+            <input id="includeInput" class="rule-input" type="text" placeholder="白名单（Ant 风格，逗号分隔）">
+            <input id="excludeInput" class="rule-input" type="text" placeholder="黑名单（Ant 风格，逗号分隔）">
+            <select id="renderSelect" class="rule-input">
+                <option value="HTML">HTML 折叠树</option>
+                <option value="PUML">PUML 文本</option>
+                <option value="PUML_HTML">PUML 图页</option>
+                <option value="MERMAID">Mermaid 文本</option>
+                <option value="MERMAID_HTML">Mermaid 图页</option>
+            </select>
+            <button id="applyBtn" class="apply-btn" type="button">应用规则</button>
+            <button id="refreshBtn" class="apply-btn" type="button">刷新</button>
+            <label class="history-toggle"><input type="checkbox" id="historyToggle">含历史</label>
+            <div class="stats">
+                <span>入队 <b id="statSubmitted">-</b></span>
+                <span>落盘 <b id="statWritten">-</b></span>
+                <span class="err">写盘失败 <b id="statDropped">-</b></span>
+                <span>排队 <b id="statQueue">-</b></span>
+                <span>保留 <b id="statRetention">-</b></span>
+            </div>
+            <div id="opStatus" class="op-status"></div>
+        </div>
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="搜索产物...">
+        </div>
+    </header>
+    <main>
+        <div class="list-container">
+            <div id="outputsList" class="outputs-list">
+                <div class="loading">正在加载产物列表...</div>
+            </div>
+        </div>
+    </main>
+</div>
+<div id="countDisplay" class="count-display">
+    <span id="visibleCount">0</span>/<span id="totalCount">0</span> 份产物
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const outputsList = document.getElementById('outputsList');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const includeInput = document.getElementById('includeInput');
+        const excludeInput = document.getElementById('excludeInput');
+        const applyBtn = document.getElementById('applyBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const renderSelect = document.getElementById('renderSelect');
+        const historyToggle = document.getElementById('historyToggle');
+        const searchInput = document.getElementById('searchInput');
+        const visibleCount = document.getElementById('visibleCount');
+        const totalCount = document.getElementById('totalCount');
+        const opStatus = document.getElementById('opStatus');
+
+        let allNames = [];
+        let namesTruncated = false;
+
+        // 详情链接必须带上当前页的 token，与 beans 页同理：点进详情是个新请求，不带就 401
+        const pageToken = (function () {
+            return new URLSearchParams(window.location.search).get('token');
+        })();
+
+        // 服务端只认 query string；把 token 与控制参数合并进查询串发 POST
+        function postUrl(params) {
+            const query = new URLSearchParams(window.location.search);
+            for (const key in params) {
+                query.set(key, params[key]);
+            }
+            return 'interceptor?' + query.toString();
+        }
+        const detailQuery = pageToken ? '?token=' + encodeURIComponent(pageToken) : '';
+
+        let opStatusTimer;
+
+        /** 操作结果必须落到界面上：只打 console 时用户会以为点成功了 */
+        function showOpStatus(message, isError) {
+            opStatus.textContent = (isError ? '⚠️ ' : '✅ ') + message;
+            opStatus.className = 'op-status show ' + (isError ? 'err' : 'ok');
+            clearTimeout(opStatusTimer);
+            opStatusTimer = setTimeout(function() {
+                opStatus.className = 'op-status';
+            }, 4000);
+        }
+
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            const colors = ['rgba(0,200,255,.8)','rgba(255,0,200,.8)','rgba(0,255,100,.8)','rgba(255,200,0,.8)','rgba(100,150,255,.8)'];
+            for (let i = 0; i < 20; i++) {
+                const particle = document.createElement('div');
+                const size = Math.random() * 100 + 10;
+                const duration = Math.random() * 15 + 10;
+                particle.style.cssText = 'position:absolute;width:' + size + 'px;height:' + size + 'px;' +
+                    'left:' + Math.random() * 100 + '%;top:' + Math.random() * 100 + '%;' +
+                    'background:radial-gradient(circle,' + colors[i % colors.length] + ' 0%,rgba(0,0,0,0) 70%);' +
+                    'border-radius:50%;animation:float ' + duration + 's infinite linear;pointer-events:none;';
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        async function fetchJson(url, options) {
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                throw new Error('HTTP error! status: ' + response.status);
+            }
+            return response.json();
+        }
+
+        function renderState(state) {
+            toggleBtn.textContent = state.active ? '捕获中（点击暂停）' : '已暂停（点击恢复捕获）';
+            toggleBtn.classList.toggle('on', state.active);
+            if (document.activeElement !== includeInput) {
+                includeInput.value = (state.includePaths || []).join(',');
+            }
+            if (document.activeElement !== excludeInput) {
+                excludeInput.value = (state.excludePaths || []).join(',');
+            }
+            document.getElementById('statSubmitted').textContent = state.submitted;
+            document.getElementById('statWritten').textContent = state.written;
+            document.getElementById('statDropped').textContent = state.dropped;
+            document.getElementById('statQueue').textContent = state.queueSize;
+            document.getElementById('statRetention').textContent = state.retention <= 0 ? '∞' : state.retention;
+            // 与两个输入框同理：轮询不得覆盖用户正在操作的下拉选择
+            if (document.activeElement !== renderSelect) {
+                renderSelect.value = state.renderType || 'HTML';
+            }
+        }
+
+        // 列表渲染上限：磁盘产物可能成百上千，全量渲染会拖垮 DOM；只画最新 N 条，搜索在已取回集合里过滤
+        const DISPLAY_LIMIT = 100;
+
+        // 服务端单次回传上限：产物再多也只拉最新这批，避免上千条 JSON 整包传输
+        const LIST_FETCH_LIMIT = 500;
+
+        function renderOutputs(names) {
+            totalCount.textContent = namesTruncated ? allNames.length + '+' : allNames.length;
+            const shown = names.slice(0, DISPLAY_LIMIT);
+            visibleCount.textContent = shown.length;
+            const countDisplay = visibleCount.parentElement;
+            countDisplay.style.animation = 'none';
+            setTimeout(() => { countDisplay.style.animation = 'pulse 0.3s'; }, 10);
+            if (shown.length === 0) {
+                outputsList.innerHTML = '<div class="empty-state">✨ ' +
+                    (allNames.length === 0 ? '暂无拦截产物，发个请求试试' : '没有匹配的产物') + ' ✨</div>';
+                return;
+            }
+            // 产物名虽经上游清洗，仍按防御纵深用 textContent 渲染，禁止拼 HTML
+            const fragment = document.createDocumentFragment();
+            shown.forEach(name => {
+                const item = document.createElement('div');
+                item.className = 'output-item';
+                const link = document.createElement('a');
+                link.href = 'interceptor/output/' + encodeURIComponent(name) + detailQuery;
+                link.target = '_blank';
+                link.textContent = name;
+                item.appendChild(link);
+                fragment.appendChild(item);
+            });
+            if (names.length > DISPLAY_LIMIT) {
+                const tip = document.createElement('div');
+                tip.className = 'empty-state';
+                tip.textContent = '仅显示最新 ' + DISPLAY_LIMIT + ' 条，共 ' + names.length + ' 条匹配，可用搜索框缩小范围';
+                fragment.appendChild(tip);
+            }
+            outputsList.innerHTML = '';
+            outputsList.appendChild(fragment);
+        }
+
+        function filterNames(searchTerm) {
+            if (!searchTerm) return allNames;
+            const lower = searchTerm.toLowerCase();
+            return allNames.filter(function(name) { return name.toLowerCase().includes(lower); });
+        }
+
+        async function refresh() {
+            try {
+                // 默认只取当天日期目录的产物；勾选"含历史"才拉全量。token 与过滤参数统一合并，避免出现两个 ?
+                const query = new URLSearchParams(window.location.search);
+                if (!historyToggle.checked) {
+                    query.set('date', todayDir());
+                }
+                query.set('limit', String(LIST_FETCH_LIMIT));
+                const [state, names] = await Promise.all([
+                    fetchJson('interceptor/state' + window.location.search),
+                    fetchJson('interceptor/list?' + query.toString())
+                ]);
+                renderState(state);
+                allNames = names;
+                namesTruncated = names.length >= LIST_FETCH_LIMIT;
+                renderOutputs(filterNames(searchInput.value.trim()));
+            } catch (error) {
+                outputsList.innerHTML = '<div class="empty-state">⚠️ 加载失败，请稍后重试 ⚠️</div>';
+                console.error('加载失败:', error);
+            }
+        }
+
+        function todayDir() {
+            const now = new Date();
+            return now.getFullYear()
+                + String(now.getMonth() + 1).padStart(2, '0')
+                + String(now.getDate()).padStart(2, '0');
+        }
+
+        toggleBtn.addEventListener('click', async function() {
+            const target = !toggleBtn.classList.contains('on');
+            try {
+                const state = await fetchJson(postUrl({ active: target }), { method: 'POST' });
+                renderState(state);
+                showOpStatus(target ? '已开始捕获（仅内存态）' : '已暂停捕获（仅内存态）', false);
+            } catch (error) {
+                console.error('切换开关失败:', error);
+                showOpStatus('切换失败，状态未改变：' + error.message, true);
+            }
+        });
+
+        applyBtn.addEventListener('click', async function() {
+            try {
+                const state = await fetchJson(postUrl({
+                    include: includeInput.value.trim(),
+                    exclude: excludeInput.value.trim(),
+                    renderType: renderSelect.value
+                }), { method: 'POST' });
+                renderState(state);
+                showOpStatus('规则已应用（仅内存态）', false);
+            } catch (error) {
+                console.error('应用规则失败:', error);
+                showOpStatus('应用失败，规则未改变：' + error.message, true);
+            }
+        });
+
+        refreshBtn.addEventListener('click', refresh);
+        historyToggle.addEventListener('change', refresh);
+
+        let searchTimer;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(function() {
+                renderOutputs(filterNames(searchInput.value.trim()));
+            }, 300);
+        });
+
+        createParticles();
+        refresh();
+        // 产物与计数自动跟随，5 秒轮询足够轻
+        setInterval(refresh, 5000);
+    });
+</script>
+</body>
+</html>

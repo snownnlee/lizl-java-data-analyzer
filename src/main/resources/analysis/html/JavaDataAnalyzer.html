@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyBmaWxsPScjMGEwZTE3Jy8+PGNpcmNsZSBjeD0nMTYnIGN5PSc5JyByPSc0JyBmaWxsPScjMDBmZmZmJy8+PGNpcmNsZSBjeD0nOCcgY3k9JzIzJyByPSc0JyBmaWxsPScjZmYwMGZmJy8+PGNpcmNsZSBjeD0nMjQnIGN5PScyMycgcj0nNCcgZmlsbD0nIzY0OTVlZCcvPjxwYXRoIGQ9J00xNiAxMyA4IDE5TTE2IDEzbDggNk04IDIzaDE2JyBzdHJva2U9JyMwMGZmZmYnIHN0cm9rZS13aWR0aD0nMS41JyBvcGFjaXR5PScuNycvPjwvc3ZnPg==">
+    <title>${title}</title>
+    <style>
+        :root {
+            /* 侧栏宽度：被 #container 的左边距引用，改一处即可 */
+            --panel-width: 200px;
+            /* 声明深色配色，让原生滚动条与表单控件跟随深色底 */
+            color-scheme: dark;
+        }
+
+        * {
+            box-sizing: border-box;
+            /* 全局收缩：作用于 html/body 与 pre，是整页宽度基准的一部分。
+               漏掉根元素会让 #container 的 100% 基准变化、整片内容右移，且不会报错。 */
+            width: fit-content;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            background-color: #0a0e17;
+            color: #c1c1c1;
+            font-family: "Microsoft YaHei UI", ui-rounded, sans-serif;
+            font-size: small;
+            margin: 0;
+            padding: 0;
+        }
+
+        pre {
+            margin: 0;
+            padding: 0;
+            font-family: "Microsoft YaHei UI", ui-rounded;
+        }
+
+        #particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0) translateX(0); opacity: 0.5; }
+            25% { transform: translateY(-50px) translateX(50px); opacity: 0.8; }
+            50% { transform: translateY(-25px) translateX(-50px); opacity: 0.5; }
+            75% { transform: translateY(50px) translateX(25px); opacity: 0.8; }
+            100% { transform: translateY(0) translateX(0); opacity: 0.5; }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, rgba(27, 38, 57, 0.95) 0%, rgba(20, 28, 44, 0.95) 100%);
+            color: #00ff00;
+            padding: 15px 25px;
+            border-radius: 8px;
+            font-weight: 600;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(0, 150, 255, 0.4);
+            z-index: 10000;
+            transform: translateX(100px);
+            opacity: 0;
+            transition: transform .5s, opacity .5s;
+            backdrop-filter: blur(10px);
+            max-width: 300px;
+        }
+
+        #functionArea {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: auto;
+            height: 100%;
+            padding: 20px 20px;
+            border: 0;
+            border-radius: 0;
+            background: linear-gradient(45deg, #ff00ff22, #00ffff22, #ffaa0022, #ff00ff22);
+            backdrop-filter: blur(1px);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            box-shadow: inset 0 0 20px #6495edaa;
+        }
+
+        .function-btn {
+            padding: 12px 24px;
+            height: auto;
+            min-width: 160px;
+            margin: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: color .4s, border-color .4s, box-shadow .4s, transform .4s, text-shadow .4s;
+            transition-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-decoration: none;
+            text-align: center;
+            color: #a0c8ff;
+            background: rgba(20, 28, 44, 0.8);
+            border: 3px solid rgba(100, 150, 255, 0.4);
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-shadow: 0 0 5px rgba(100, 150, 255, 0.5);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            outline: none;
+        }
+
+        .function-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left .6s;
+        }
+
+        .function-btn:hover::before {
+            left: 100%;
+        }
+
+        .function-btn:hover {
+            color: #ffffff;
+            border-color: rgba(0, 200, 255, 0.8);
+            box-shadow: 0 8px 25px rgba(0, 100, 255, 0.4),
+            0 0 20px rgba(0, 150, 255, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px);
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        }
+
+        .function-btn:active {
+            transform: translateY(1px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        #allExpand {
+            cursor: zoom-in;
+            background: linear-gradient(135deg, rgba(0, 100, 200, 0.7) 0%, rgba(0, 40, 80, 0.7) 100%);
+            border-color: rgba(0, 150, 255, 0.9);
+        }
+
+        #allCollapse {
+            cursor: zoom-out;
+            background: linear-gradient(135deg, rgba(100, 0, 200, 0.7) 0%, rgba(40, 0, 80, 0.7) 100%);
+            border-color: rgba(150, 0, 255, 0.9);
+        }
+
+        #effectsLevelSwitcher {
+            cursor: pointer;
+            background: linear-gradient(135deg, rgba(70, 90, 125, 0.7) 0%, rgba(20, 28, 44, 0.7) 100%);
+            border-color: rgba(100, 150, 255, 0.4);
+        }
+
+        #container {
+            width: 100%;
+            flex: 1;
+            padding: 20px;
+            /* 让开左侧固定侧栏，宽度取自 :root 变量 */
+            margin: 200px 0 0 var(--panel-width);
+            display: flex;
+            flex-direction: column;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+
+        :target {
+            animation: highlight-target 2s;
+        }
+
+        @keyframes highlight-target {
+            50% {
+                border-color: rgba(255, 0, 0, 0.8);
+                background-color: rgba(255, 0, 0, 0.5);
+            }
+        }
+
+        .common_info_model {
+            color: #ff5555;
+            text-shadow: 0 0 5px rgba(255, 85, 85, 0.5);
+        }
+
+        .root_class_model {
+            margin: 20px;
+            padding: 0;
+            border: 3px solid #6495ed99;
+            background-color: rgba(10, 15, 25, 0.8);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            transition: box-shadow .3s, border-color .3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .root_class_model:hover {
+            box-shadow: 0 0 20px rgba(100, 149, 237, 0.3);
+            border-color: #00bfff;
+        }
+
+        .root_class_model::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #6495ed;
+        }
+
+        .class_model {
+            margin: 0;
+            padding: 0;
+            border: 3px solid #6495ed99;
+            background-color: rgba(15, 20, 30, 0.8);
+            border-radius: 6px;
+            transition: box-shadow .3s, border-color .3s;
+        }
+
+        .class_model:hover {
+            box-shadow: 0 0 20px rgba(100, 149, 237, 0.3);
+            border-color: #00bfff;
+        }
+
+        .class_model_title {
+            background-color: rgba(29, 38, 59, 0.9);
+            color: #c6c45e;
+            width: unset;
+            padding: 5px 8px;
+            border-radius: 4px 4px 0 0;
+            border-bottom: 1px solid rgba(100, 149, 237, 0.3);
+            display: flex;
+            align-items: center;
+        }
+
+        .class_model_title_super_flag,
+        .class_model_title_modifier_type {
+            color: #ffaa66;
+            font-weight: bold;
+            margin-right: 1em;
+        }
+
+        .class_model_title_super_flag {
+            text-shadow: 0 0 3px rgba(255, 170, 102, 0.5);
+        }
+
+        .class_model_title_display_name {
+            font-weight: normal;
+            color: #ffff55;
+            user-select: all;
+            margin-right: 1em;
+        }
+
+        .class_model_title_instance_flag {
+            color: #ff0000;
+            margin-right: 1em;
+        }
+
+        .class_model_title_display_id {
+            color: #ffff55;
+            margin-right: 1em;
+        }
+
+        .class_model_title_control_button {
+            margin: 0 0 0 15px;
+            color: #00ff00;
+            background: rgba(100, 149, 237, 0.2);
+            padding: 3px 8px;
+            border-radius: 4px;
+            text-decoration: none;
+            transition: background .3s, color .3s, box-shadow .3s, transform .3s;
+            border: 1px solid rgba(100, 149, 237, 0.4);
+        }
+
+        .class_model_title_control_button:hover {
+            background: rgba(100, 149, 237, 0.4);
+            color: #ffffff;
+            box-shadow: 0 0 10px rgba(100, 149, 237, 0.5);
+            transform: scale(1.05);
+        }
+
+        .super_class_model {
+            width: 100%;
+            padding: 0;
+            border-top: 2px dashed #6495ed;
+            background-color: rgba(10, 15, 25, 0.6);
+            margin-top: 10px;
+            border-radius: 6px;
+        }
+
+        .super_class_model:hover {
+            border-color: #00bfff;
+        }
+
+        .link_class_model {
+            margin: 0;
+            border: 2px dashed #00ff0099;
+            background: rgba(117, 170, 95, 0.1);
+            padding: 6px;
+            border-radius: 4px;
+            transition: background .3s, box-shadow .3s, border-color .3s;
+        }
+
+        .link_class_model:hover {
+            background: rgba(117, 170, 95, 0.2);
+            box-shadow: 0 0 10px rgba(117, 170, 95, 0.3);
+            border: 2px solid #00ff00ff;
+        }
+
+        .link_class_model_container {
+            color: #a0ffa0;
+            text-decoration: none;
+            font-weight: bold;
+            text-shadow: 0 0 5px rgba(160, 255, 160, 0.5);
+            transition: color .3s, text-shadow .3s;
+        }
+
+        .link_class_model_container:hover {
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        }
+
+        .class_model_content {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        .field_model {
+            display: flex;
+            margin: 10px 10px 10px 20px;
+            padding: 0;
+            border: 2px solid rgba(44, 61, 89, 0.8);
+            border-radius: 6px;
+            transition: border-color .3s;
+            box-shadow: inset 0 0 14px #4433ff99;
+        }
+
+        .field_model:hover {
+            border-color: #cc00ffaa;
+        }
+
+        .field_model_info {
+            margin: 0;
+            padding: 0;
+        }
+
+        .field_model_info_title {
+            display: inline-block;
+            margin: 0;
+            padding: 8px;
+        }
+
+        .field_model_info_static_flag,
+        .field_model_info_final_flag {
+            color: #ffaa66;
+            font-weight: bold;
+            margin-right: 1em;
+        }
+
+        .field_model_info_name {
+            color: #00ddff;
+            font-weight: bold;
+            margin-right: 1em;
+            user-select: all;
+        }
+
+        .field_model_info_type {
+            color: #ffff55;
+            font-style: italic;
+            user-select: all;
+        }
+
+        .field_model_info_equal_flag {
+            color: #ff0000;
+            margin: 0 1em;
+            font-weight: bold;
+        }
+
+        .field_model_info_size {
+            color: #ff5555;
+            margin-right: 0.5em;
+        }
+
+        .field_model_info_value {
+            color: #ffffff;
+            display: inline-flex;
+            max-width: 400px;
+            overflow-x: auto;
+            white-space: nowrap;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+            padding: 4px 8px;
+            background: rgba(22, 28, 45, 0.8);
+            border-radius: 4px;
+            border: 1px solid rgba(100, 150, 255, 0.3);
+            transition: background .3s, box-shadow .3s;
+            user-select: all;
+        }
+
+        .field_model_info_value:hover {
+            background: rgba(22, 28, 45, 0.9);
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .field_model_info_value::-webkit-scrollbar {
+            display: none;
+        }
+
+        .field_classes_container {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(20, 25, 40, 0.5);
+            border-radius: 4px;
+        }
+
+        .field_classes_container_panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 10px 0;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            createParticles();
+
+            naviToTarget();
+        });
+
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+
+            const particleCount = 20;
+
+            const colors = [
+                'rgba(0, 200, 255, 0.8)',
+                'rgba(255, 0, 200, 0.8)',
+                'rgba(0, 255, 100, 0.8)',
+                'rgba(255, 200, 0, 0.8)',
+                'rgba(100, 150, 255, 0.8)'
+            ];
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+
+                const size = Math.random() * 100 + 10;
+                const x = Math.random() * 100;
+                const y = Math.random() * 100;
+                const duration = Math.random() * 15 + 10;
+                const color = colors[Math.floor(Math.random() * colors.length)];
+
+                particle.style.cssText = `position: absolute; width: ${size}px; height: ${size}px; left: ${x}%; top: ${y}%; background: radial-gradient(circle, ${color} 0%, rgba(0,0,0,0) 70%); border-radius: 50%; animation: float ${duration}s infinite 0s linear; pointer-events: none;`;
+
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        function showNotification(text) {
+            const existingNotification = document.querySelector('.notification');
+            if (existingNotification) {
+                existingNotification.remove();
+            }
+
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = text;
+
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+                notification.style.opacity = '1';
+            }, 10);
+
+            setTimeout(() => {
+                notification.style.transform = 'translateX(100px)';
+                notification.style.opacity = '0';
+
+                setTimeout(() => {
+                    notification.remove();
+                }, 500);
+            }, 3000);
+        }
+
+        function expandAll() {
+            const rootClassDivList = document.querySelectorAll('[data-root]');
+            for (let i = 0; i < rootClassDivList.length; i++) {
+                expandClassDiv(rootClassDivList[i], true);
+            }
+        }
+
+        function collapseAll() {
+            const rootClassDivList = document.querySelectorAll('[data-root]');
+            for (let i = rootClassDivList.length - 1; i >= 0; i--) {
+                collapseClassDiv(rootClassDivList[i], true);
+            }
+        }
+
+        /**
+         * 切换粒子特效层级：-1 把粒子压到内容之后，只解决遮挡问题，不关动画。
+         */
+        function switchEffectsLevel() {
+            const particlesContainer = document.getElementById('particles');
+            if (particlesContainer.style.zIndex === '-1') {
+                particlesContainer.style.zIndex = '0';
+                showNotification('特效层级已恢复');
+            } else {
+                particlesContainer.style.zIndex = '-1';
+                showNotification('特效层级已降低');
+            }
+        }
+
+        /**
+         * 展开/收起按钮的入口。
+         *
+         * <p>必须 stopPropagation：按钮嵌在类标题的 onclick 里，冒泡会连带触发导航，而导航沿祖先链展开
+         * 当前元素，把刚收起的内容又摊开，表现为「点收起没反应」。
+         */
+        function changeDisplayForClassDiv(controlElement, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            let classId = controlElement.getAttribute('data-classId');
+            let name = controlElement.getAttribute('data-name');
+            if (name === '+') {
+                expandClassDiv(document.getElementById(classId), false);
+            } else if (name === '++') {
+                expandClassDiv(document.getElementById(classId), true);
+            } else if (name === '-') {
+                collapseClassDiv(document.getElementById(classId), false);
+            } else if (name === '--') {
+                collapseClassDiv(document.getElementById(classId), true);
+            }
+        }
+
+        function expandClassDiv(element, all) {
+            setClassDivVisible(element, all, true);
+        }
+
+        function collapseClassDiv(element, all) {
+            setClassDivVisible(element, all, false);
+        }
+
+        /**
+         * 展开/收起的唯一实现。
+         *
+         * <p>按 {@code data-name} 分派：{@code ++} 只在「全部展开」时隐藏，否则保持原状；
+         * {@code support-control} 是受控面板，非 all 时不往下递归，避免一次点击摊开整棵子树。
+         */
+        function setClassDivVisible(element, all, expand) {
+            if (element.nodeType !== 1) {
+                return;
+            }
+            const name = element.getAttribute('data-name');
+            if (name === '+') {
+                element.style.display = expand ? 'none' : '';
+            } else if (name === '-') {
+                element.style.display = expand ? '' : 'none';
+            } else if (name === '++') {
+                if (!expand || all) {
+                    element.style.display = expand ? 'none' : '';
+                }
+            } else if (name === '--') {
+                element.style.display = expand ? '' : 'none';
+            } else if (element.hasAttribute('support-control')) {
+                element.style.display = expand ? '' : 'none';
+                if (!all) {
+                    return;
+                }
+            }
+            for (const child of element.childNodes) {
+                setClassDivVisible(child, all, expand);
+            }
+        }
+
+        /** 只写地址栏 hash 与历史记录，不做任何呈现动作。 */
+        function writeHash(hash) {
+            if (window.location.hash === hash) {
+                return;
+            }
+            history.pushState({}, '', hash);
+        }
+
+        /**
+         * 记录历史后立即按新 hash 呈现视图。
+         *
+         * <p>必须自己触发：pushState 不触发 popstate 也不触发 hashchange，只写 hash 等于点击没反应。
+         */
+        function setNaviHash(hash) {
+            writeHash(hash);
+            naviToTarget();
+        }
+
+        let isNowNavigating = false;
+        function naviToTarget() {
+            if (isNowNavigating) {
+                showNotification("繁忙中，稍后再试！");
+                return;
+            }
+            const hash = window.location.hash;
+            if (!hash) {
+                return;
+            }
+            const targetId = hash.substring(1);
+            let target = document.getElementById(targetId);
+            if (!target) {
+                return;
+            }
+            isNowNavigating = true;
+            let current = target;
+            while (current && current !== document.body) {
+                if (current.hasAttribute('data-expandable')) {
+                    expandClassDiv(current, false);
+                }
+                current = current.parentElement;
+            }
+            writeHash('#' + targetId);
+            highlightAndMoveTo(target);
+            showNotification('跳转到' + describeNavTarget(target) + ': ' + targetId);
+        }
+
+        /** 按 data-kind 判定导航提示里的类型名，字段与类分开，避免点字段却提示“跳转到类”。 */
+        function describeNavTarget(element) {
+            const kind = element.getAttribute('data-kind');
+            if (kind === 'field') {
+                return '字段';
+            }
+            if (kind === 'class') {
+                return '类';
+            }
+            return '节点';
+        }
+
+        function highlightAndMoveTo(targetElement) {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    const oldTarget = document.querySelector(':target');
+                    if (oldTarget) {
+                        oldTarget.style.animation = 'none';
+                        void oldTarget.offsetWidth;
+                    }
+
+                    targetElement.style.animation = 'highlight-target 2s';
+
+                    setTimeout(() => {
+                        const rect = targetElement.getBoundingClientRect();
+                        const currentScrollTop = window.scrollY || document.documentElement.scrollTop;
+                        const currentScrollLeft = window.scrollX || document.documentElement.scrollLeft;
+
+                        let scrollTopOffset = 0;
+                        let scrollLeftOffset = 0;
+
+                        if (rect.top < 300) {
+                            scrollTopOffset = rect.top - 300;
+                        }
+
+                        if (rect.left < 300) {
+                            scrollLeftOffset = rect.left - 300;
+                        }
+
+                        if (scrollTopOffset !== 0 || scrollLeftOffset !== 0) {
+                            window.scrollTo({
+                                left: currentScrollLeft + scrollLeftOffset,
+                                top: currentScrollTop + scrollTopOffset,
+                                behavior: 'smooth'
+                            });
+                        }
+                        isNowNavigating = false;
+                    }, 100);
+                });
+            });
+        }
+
+        window.addEventListener('popstate', naviToTarget);
+    </script>
+</head>
+<body>
+<div id="functionArea">
+    <button id="allExpand" class="function-btn" onclick="expandAll()">全部展开 [+]</button>
+    <button id="allCollapse" class="function-btn" onclick="collapseAll()">全部收起 [-]</button>
+    <button id="effectsLevelSwitcher" class="function-btn" onclick="switchEffectsLevel()">切换特效层级</button>
+</div>
+<div id="container">
+    ${content}
+</div>
+<div id="particles"></div>
+</body>
+</html>

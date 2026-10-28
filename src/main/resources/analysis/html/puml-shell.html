@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="${favicon}">
+    <title>${title}</title>
+    <style>
+        html {
+            color-scheme: dark
+        }
+
+        body {
+            margin: 0;
+            padding: 16px;
+            background: #0a0e17;
+            color: #c1c1c1;
+            font: 13px/1.5 "Microsoft YaHei UI", ui-rounded, sans-serif
+        }
+
+        #diagram svg {
+            display: block;
+            max-width: none
+        }
+    </style>
+</head>
+<body>
+<div id="diagram">
+    <pre style="color:#8fb4e0">渲染中…</pre>
+</div>
+<script src="./${vizFile}"></script>
+<script src="./${pumlFile}"></script>
+<script>
+    if (!window.PlantUML) {
+        document.getElementById("diagram").innerHTML = "<pre style='color:#ff6b6b'>未找到 ${pumlFile}，请确认它与本文件在同一目录</pre>";
+    } else {
+        PlantUML.render(${pumlArray}, "diagram");
+    }
+</script>
+</body>
+</html>

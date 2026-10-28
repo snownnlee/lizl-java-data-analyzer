@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjMGEwZTE3Ii8+PGVsbGlwc2UgY3g9IjEwIiBjeT0iMTAiIHJ4PSI2IiByeT0iNCIgZmlsbD0iI2M2YzQ1ZSIgb3BhY2l0eT0iMC45Ii8+PGVsbGlwc2UgY3g9IjIyIiBjeT0iMTAiIHJ4PSI2IiByeT0iNCIgZmlsbD0iIzAwZGRmZiIgb3BhY2l0eT0iMC45Ii8+PGVsbGlwc2UgY3g9IjE2IiBjeT0iMjIiIHJ4PSI2IiByeT0iNCIgZmlsbD0iIzY0OTVlZCIgb3BhY2l0eT0iMC45Ii8+PGxpbmUgeDE9IjEwIiB5MT0iMTQiIHgyPSIxNiIgeTI9IjE4IiBzdHJva2U9IiNjNmM0NWUiIHN0cm9rZS13aWR0aD0iMS41IiBvcGFjaXR5PSIwLjYiLz48bGluZSB4MT0iMjIiIHkxPSIxNCIgeDI9IjE2IiB5Mj0iMTgiIHN0cm9rZT0iIzAwZGRmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIG9wYWNpdHk9IjAuNiIvPjwvc3ZnPg==">
+    <title>Beans</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei UI", ui-rounded, sans-serif;
+        }
+
+        body {
+            background-color: #0a0e17;
+            color: #c1c1c1;
+            font-family: "Microsoft YaHei UI", ui-rounded, sans-serif;
+            font-size: small;
+            padding: 20px;
+            padding-top: 250px;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0) translateX(0); opacity: 0.5; }
+            25% { transform: translateY(-50px) translateX(50px); opacity: 0.8; }
+            50% { transform: translateY(-25px) translateX(-50px); opacity: 0.5; }
+            75% { transform: translateY(50px) translateX(25px); opacity: 0.8; }
+            100% { transform: translateY(0) translateX(0); opacity: 0.5; }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 20px;
+            background: linear-gradient(45deg, #ff00ff22, #00ffff22, #ffaa0022, #ff00ff22);
+            backdrop-filter: blur(1px);
+            box-shadow: inset 0 0 20px #6495edaa;
+            background-color: rgba(10, 14, 23, 0.72);
+        }
+
+
+        h1 {
+            align-self: center;
+            background: linear-gradient(90deg, #ff00ff, #00ffff, #ffaa00, #64ff9e, #6495ed);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            font-size: 1.25rem;
+            margin: 0;
+            font-weight: 700;
+            letter-spacing: 1px;
+            filter: drop-shadow(0 0 6px rgba(100, 150, 255, 0.45));
+        }
+
+        .search-container {
+            display: flex;
+            justify-content: center;
+        }
+
+        .search-box {
+            width: 100%;
+            max-width: 650px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 24px;
+            padding-right: 44px;
+            color: #a0c8ff;
+            background: rgba(20, 28, 44, 0.8);
+            border: 3px solid rgba(100, 150, 255, 0.4);
+            border-radius: 8px;
+            outline: none;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transition: color .4s, border-color .4s, box-shadow .4s;
+            transition-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+
+        .search-box input:focus {
+            color: #ffffff;
+            border-color: rgba(0, 200, 255, 0.8);
+            box-shadow: 0 8px 25px rgba(0, 100, 255, 0.4),
+            0 0 20px rgba(0, 150, 255, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+
+        .search-box input::placeholder {
+            color: rgba(160, 200, 255, 0.55);
+            font-weight: 400;
+            letter-spacing: 0.3px;
+            text-shadow: none;
+            opacity: 1;
+        }
+
+        .search-box::after {
+            content: "🔍";
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1rem;
+            color: #c6c45e;
+            text-shadow: 0 0 5px rgba(198, 196, 94, 0.5);
+            pointer-events: none;
+        }
+
+        .beans-container {
+            margin: 0;
+            padding: 0;
+            border: 3px solid #6495ed99;
+            background-color: rgba(10, 15, 25, 0.8);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            transition: box-shadow .3s, border-color .3s;
+            position: relative;
+            overflow: hidden;
+            min-height: 400px;
+        }
+
+        .beans-container:hover {
+            box-shadow: 0 0 20px rgba(100, 149, 237, 0.3);
+            border-color: #00bfff;
+        }
+
+
+        .beans-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #ff00ff, #00ffff, #ffaa00, #64ff9e, #6495ed);
+        }
+
+        .beans-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            padding: 0;
+        }
+
+        .bean-item {
+            --accent: 0, 255, 255;
+            display: flex;
+            position: relative;
+            margin: 10px 10px 10px 20px;
+            padding: 0;
+            border: 2px solid rgba(44, 61, 89, 0.8);
+            border-left: 3px solid rgba(var(--accent), 0.85);
+            border-radius: 6px;
+            box-shadow:
+            inset 0 0 14px #4433ff99,
+            inset 16px -6px 18px -14px rgba(var(--accent), 0.65);
+            transition: border-color .3s, box-shadow .3s, transform .3s;
+        }
+
+        .bean-item::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(225deg, rgba(var(--accent), 0.8), transparent 62%);
+            border-radius: 0 4px 0 0;
+            opacity: .5;
+            transition: opacity .3s;
+        }
+
+
+        .bean-item:hover {
+            border-color: rgba(var(--accent), 0.55);
+            border-left-color: rgb(var(--accent));
+            box-shadow:
+            inset 0 0 14px #4433ff99,
+            inset 16px -6px 22px -12px rgba(var(--accent), 0.95),
+            0 0 18px rgba(var(--accent), 0.22),
+            0 6px 18px rgba(0, 0, 0, 0.35);
+            transform: translateX(3px);
+        }
+
+        .bean-item:hover::after {
+            opacity: 1;
+        }
+
+        /* 色相轮换：青 → 蓝 → 品红 → 琥珀 → 翠绿 */
+        .bean-item:nth-child(5n + 1) { --accent: 0, 255, 255; }
+        .bean-item:nth-child(5n + 2) { --accent: 100, 150, 255; }
+        .bean-item:nth-child(5n + 3) { --accent: 255, 0, 255; }
+        .bean-item:nth-child(5n + 4) { --accent: 255, 170, 0; }
+        .bean-item:nth-child(5n + 5) { --accent: 100, 255, 158; }
+
+
+        .bean-item a {
+            display: block;
+            padding: 6px 10px;
+            color: rgb(var(--accent));
+            font-weight: bold;
+            font-size: 14px;
+            text-decoration: none;
+            word-break: break-all;
+            user-select: all;
+            transition: color .3s, text-shadow .3s;
+        }
+
+        .bean-item a::before {
+            content: '';
+            display: inline-block;
+            width: 0;
+            height: 0;
+            margin-right: 9px;
+            border-left: 5px solid rgba(var(--accent), 0.9);
+            border-top: 4px solid transparent;
+            border-bottom: 4px solid transparent;
+            vertical-align: middle;
+            transition: transform .3s;
+        }
+
+        .bean-item:hover a::before {
+            transform: translateX(3px);
+        }
+
+        .bean-item a:hover {
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(var(--accent), 0.75);
+        }
+
+
+        .empty-state {
+
+            text-align: center;
+            padding: 60px 20px;
+            color: #a0c8ff;
+            font-size: 14px;
+            background: rgba(20, 28, 44, 0.5);
+            border-radius: 6px;
+            border: 1px dashed rgba(100, 149, 237, 0.3);
+            margin: 10px;
+        }
+
+        .loading {
+
+            text-align: center;
+            padding: 40px 20px;
+            color: #c6c45e;
+            font-size: 14px;
+        }
+
+        .loading::after {
+            content: "";
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(198, 196, 94, 0.2);
+            border-radius: 50%;
+            border-top-color: #c6c45e;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 15px;
+            box-shadow: 0 0 15px rgba(198, 196, 94, 0.5);
+        }
+
+        .count-display {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(29, 38, 59, 0.9);
+            color: #c6c45e;
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: 1px solid rgba(100, 149, 237, 0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            font-size: 14px;
+            font-weight: 700;
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .count-display:hover {
+            border-color: rgba(0, 200, 255, 0.8);
+        }
+
+        #visibleCount {
+            color: #c6c45e;
+        }
+
+        #totalCount {
+            color: #a0c8ff;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.1rem;
+            }
+            .beans-list {
+                grid-template-columns: 1fr;
+            }
+            .beans-container {
+                padding: 0;
+            }
+            body {
+                padding-top: 160px;
+            }
+            .count-display {
+                bottom: 15px;
+                right: 15px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="particles" id="particles"></div>
+<div class="container">
+    <header>
+        <h1>Beans</h1>
+        <div class="search-container">
+            <div class="search-box">
+                <label for="searchInput"></label><input type="text" id="searchInput" placeholder="搜索Beans...">
+            </div>
+        </div>
+    </header>
+    <main>
+        <div class="beans-container">
+            <div id="beansList" class="beans-list">
+                <div class="loading">正在加载Bean列表...</div>
+            </div>
+        </div>
+    </main>
+</div>
+<div id="countDisplay" class="count-display">
+    <span id="visibleCount">0</span>/<span id="totalCount">0</span>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const beansList = document.getElementById('beansList');
+        const searchInput = document.getElementById('searchInput');
+        const visibleCountElement = document.getElementById('visibleCount');
+        const totalCountElement = document.getElementById('totalCount');
+        const countDisplay = document.getElementById('countDisplay');
+
+        let allBeans = [];
+
+        // 详情链接必须带上当前页的 token：页面与列表请求都带着它，唯独点进详情是个新请求，不带就直接 401。
+        // 只挑 token 一个参数，避免把 rebuild 之类也捎过去（会让每次点开都重算）。
+        const detailQuery = (function () {
+            const token = new URLSearchParams(window.location.search).get('token');
+            return token ? '?token=' + encodeURIComponent(token) : '';
+        })();
+
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            const particleCount = 20;
+
+            const colors = [
+                'rgba(0, 200, 255, 0.8)',
+                'rgba(255, 0, 200, 0.8)',
+                'rgba(0, 255, 100, 0.8)',
+                'rgba(255, 200, 0, 0.8)',
+                'rgba(100, 150, 255, 0.8)'
+            ];
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+
+                const size = Math.random() * 100 + 10;
+                const x = Math.random() * 100;
+                const y = Math.random() * 100;
+                const duration = Math.random() * 15 + 10;
+                const color = colors[Math.floor(Math.random() * colors.length)];
+
+                particle.style.cssText = `
+                    position: absolute;
+                    width: ${size}px;
+                    height: ${size}px;
+                    left: ${x}%;
+                    top: ${y}%;
+                    background: radial-gradient(circle, ${color} 0%, rgba(0,0,0,0) 70%);
+                    border-radius: 50%;
+                    animation: float ${duration}s infinite 0s linear;
+                    pointer-events: none;
+                `;
+
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        async function fetchBeansFromServer() {
+            try {
+                const response = await fetch('beans' + window.location.search, { method: 'POST' });
+
+                if (!response.ok) {
+                    // noinspection ExceptionCaughtLocallyJS
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('请求数据失败:', error);
+                throw error;
+            }
+        }
+
+        function updateCountDisplay(visibleCount) {
+            visibleCountElement.textContent = visibleCount;
+            totalCountElement.textContent = allBeans.length;
+
+            countDisplay.style.animation = 'none';
+            setTimeout(() => {
+                countDisplay.style.animation = 'pulse 0.3s';
+            }, 10);
+        }
+
+        function renderBeans(beans) {
+            if (beans.length === 0) {
+                beansList.innerHTML = "<div class=\"empty-state\">✨ 没有找到匹配的Bean ✨</div>";
+                updateCountDisplay(0);
+                return;
+            }
+
+            // bean 名可能来自调用方自定义命名（含用户可控字符串），必须用 textContent 渲染，禁止拼 HTML
+            const fragment = document.createDocumentFragment();
+            beans.forEach(bean => {
+                const item = document.createElement('div');
+                item.className = 'bean-item';
+                const link = document.createElement('a');
+                link.href = 'bean/' + encodeURIComponent(bean) + detailQuery;
+                link.target = '_blank';
+                link.textContent = bean;
+                item.appendChild(link);
+                fragment.appendChild(item);
+            });
+            beansList.innerHTML = '';
+            beansList.appendChild(fragment);
+
+            updateCountDisplay(beans.length);
+        }
+
+        function filterBeans(beans, searchTerm) {
+            if (!searchTerm) return beans;
+
+            return beans.filter(bean =>
+                bean.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        async function init() {
+            try {
+                createParticles();
+
+                allBeans = await fetchBeansFromServer();
+                renderBeans(allBeans);
+
+                const debouncedFilter = debounce(function(searchTerm) {
+                    const filteredBeans = filterBeans(allBeans, searchTerm);
+                    renderBeans(filteredBeans);
+                }, 300);
+
+                searchInput.addEventListener('input', function() {
+                    debouncedFilter(this.value);
+                });
+
+            } catch (error) {
+                beansList.innerHTML = '<div class="empty-state">⚠️ 加载数据失败，请稍后重试 ⚠️</div>';
+                console.error('加载数据失败:', error);
+            }
+        }
+
+        init();
+    });
+</script>
+</body>
+</html>
