@@ -37,3 +37,7 @@ build/
 
 ### 本地文档（不纳入版本库） ###
 docs/
+
+# release 脚本本地令牌
+release.local.json
+/publish/

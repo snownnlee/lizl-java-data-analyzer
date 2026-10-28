@@ -1,0 +1,4 @@
+{
+  "githubToken": "在此填入 GitHub PAT（需 repo 权限，用于创建 Release 与上传附件）",
+  "giteeToken": "在此填入 Gitee 私人令牌（需 projects 权限，用于创建 Release）"
+}
