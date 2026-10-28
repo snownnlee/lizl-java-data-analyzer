@@ -764,7 +764,8 @@ try {
     # 幂等：Release 详情里已带同名附件则跳过（Gitee assets 可能不返回，视为需上传）
     $giteeAsset = $null
     if ($giteeObj.assets) {
-        $giteeAsset = $giteeObj.assets | Where-Object { [string]$_.name -eq $assetName -or [string]$_.path -like ('*' + $assetName) } | Select-Object -First 1
+        # Gitee assets 元素只有 name / browser_download_url，没有 path 等字段，只按 name 判断
+        $giteeAsset = $giteeObj.assets | Where-Object { [string]$_.name -eq $assetName } | Select-Object -First 1
     }
     if ($giteeAsset) {
         Skip-Step '远端已存在同名附件'
