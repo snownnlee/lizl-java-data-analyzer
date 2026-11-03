@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -27,7 +27,7 @@ import java.util.logging.Logger;
  *
  * @see HttpAnalysisServer
  */
-public final class SimpleAnalysisProvider implements AnalysisProvider, AutoCloseable {
+public class SimpleAnalysisProvider implements AnalysisProvider, AutoCloseable {
 
     /**
      * 文件名中被保留的最大字符数，避免对象名过长导致路径超限。
@@ -36,11 +36,22 @@ public final class SimpleAnalysisProvider implements AnalysisProvider, AutoClose
 
     private final Logger log = Logger.getLogger(getClass().getName());
 
+    private final String name;
+
     private final RunningConfigurer configurer;
 
     private final Map<String, Entry> entries = new ConcurrentHashMap<>();
 
-    private final List<String> names = new CopyOnWriteArrayList<>();
+    /**
+     * 登记顺序表：登记序号（{@link Entry#sequence}）→ 名字。
+     *
+     * <p>用 {@link ConcurrentSkipListMap}（并发版 TreeMap）：按 key 天然有序，{@code values()} 遍历
+     * 就是登记顺序，读路径既不需要排序也不需要加锁；写只是局部节点的插入/删除，不会被读阻塞。
+     *
+     * <p>代价是读「弱一致」：可能还没看到刚刚登记的名字。这可以接受——名字列表只用于展示，
+     * 而写路径（可能非常频繁）不能被读拖慢。
+     */
+    private final ConcurrentSkipListMap<Integer, String> orderedNames = new ConcurrentSkipListMap<>();
 
     private final AtomicInteger sequenceGenerator = new AtomicInteger(0);
 
@@ -53,12 +64,17 @@ public final class SimpleAnalysisProvider implements AnalysisProvider, AutoClose
     });
 
     /**
+     * @param name       容器注册名（{@link #getName()}），非空白；出现在 {@code ?container=} 与容器选择页
      * @param configurer 决定分析粒度与产物形态的运行配置器，本类会独占使用它；不能为 null
      */
-    public SimpleAnalysisProvider(RunningConfigurer configurer) {
+    public SimpleAnalysisProvider(String name, RunningConfigurer configurer) {
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("容器名不能为空");
+        }
         if (configurer == null) {
             throw new IllegalArgumentException("configurer 不能为 null");
         }
+        this.name = name.trim();
         this.configurer = configurer;
     }
 
@@ -77,12 +93,14 @@ public final class SimpleAnalysisProvider implements AnalysisProvider, AutoClose
             throw new IllegalArgumentException("分析对象不能为 null");
         }
         String finalName = name.trim();
+        // 写之间仍用 this 串行：并发登记同一名字时，序号分配与「是否首次登记」的判断需要原子性；
+        // 读路径（getBeanNames）不走这把锁，因此读不会挡住写。
         synchronized (this) {
             Entry existing = entries.get(finalName);
             int sequence = existing != null ? existing.sequence : sequenceGenerator.incrementAndGet();
             entries.put(finalName, new Entry(finalName, target, sequence));
             if (existing == null) {
-                names.add(finalName);
+                orderedNames.put(sequence, finalName);
             }
         }
         return this;
@@ -106,10 +124,14 @@ public final class SimpleAnalysisProvider implements AnalysisProvider, AutoClose
      * @return 是否确实存在并移除了该名字
      */
     public synchronized boolean remove(String name) {
-        if (name == null || entries.remove(name) == null) {
+        if (name == null) {
             return false;
         }
-        names.remove(name);
+        Entry removed = entries.remove(name);
+        if (removed == null) {
+            return false;
+        }
+        orderedNames.remove(removed.sequence);
         return true;
     }
 
@@ -120,10 +142,21 @@ public final class SimpleAnalysisProvider implements AnalysisProvider, AutoClose
      */
     public synchronized SimpleAnalysisProvider clear() {
         entries.clear();
-        names.clear();
+        orderedNames.clear();
         return this;
     }
 
+    @Override
+    public String getName() {
+        return name;
+    }
+
+    /**
+     * 返回登记表当前的名字列表，顺序即登记顺序。
+     *
+     * <p>读路径不加锁：{@code orderedNames.values()} 本身按登记序号排列，{@code toArray} 是并发跳表的
+     * 弱一致遍历——加锁反而会让频繁的写被读挡住。代价是可能漏掉刚刚登记的名字，展示场景可接受。
+     */
     @Override
     public List<String> getBeanNames(boolean rebuild) {
         if (rebuild) {
@@ -133,7 +166,7 @@ public final class SimpleAnalysisProvider implements AnalysisProvider, AutoClose
             }
             submitReanalyze(snapshot);
         }
-        return new ArrayList<>(names);
+        return new ArrayList<>(orderedNames.values());
     }
 
     @Override
@@ -179,9 +212,10 @@ public final class SimpleAnalysisProvider implements AnalysisProvider, AutoClose
         }
     }
 
+    /** 按登记顺序收集条目；两个并发容器的遍历都是弱一致的，不加锁也不会阻塞写 */
     private List<Entry> snapshot() {
-        List<Entry> result = new ArrayList<>(names.size());
-        for (String name : names) {
+        List<Entry> result = new ArrayList<>();
+        for (String name : orderedNames.values()) {
             Entry entry = entries.get(name);
             if (entry != null) {
                 result.add(entry);

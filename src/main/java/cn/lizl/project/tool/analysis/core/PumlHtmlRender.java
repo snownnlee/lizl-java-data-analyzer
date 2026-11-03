@@ -17,6 +17,8 @@ class PumlHtmlRender extends BaseRender {
 
     private static final String SHELL_TEMPLATE = "puml-shell.html";
 
+    private static final String[] PLACEHOLDERS = {"${favicon}", "${title}", "${vizFile}", "${pumlFile}", "${pumlArray}"};
+
     /** 行分割正则预编译：String.split 每次调用都会重编译 */
     private static final Pattern LINE_BREAK = Pattern.compile("\\r?\\n");
 
@@ -38,7 +40,7 @@ class PumlHtmlRender extends BaseRender {
     @Override
     public String render(ClassModel[] classModels) {
         return HtmlTemplates.fill(HtmlTemplates.load(SHELL_TEMPLATE),
-                new String[]{"${favicon}", "${title}", "${vizFile}", "${pumlFile}", "${pumlArray}"},
+                PLACEHOLDERS,
                 new String[]{FAVICON_DATA_URI, HtmlTemplates.escapeHtml(buildTitle(classModels)),
                         FrontendAssets.VIZ_GLOBAL, FrontendAssets.PLANTUML,
                         toJsStringArray(pumlRender.render(classModels))});
@@ -51,7 +53,7 @@ class PumlHtmlRender extends BaseRender {
     }
 
     /**
-     * PUML 文本 → JS 字符串数组字面量。{@code <} 必须转 {@code \u003c}（求值后仍是 <，值不变）：
+     * PUML 文本 → JS 字符串数组字面量。{@code <} 必须转 {@code <}（求值后仍是 <，值不变）：
      * 用 {@code <\/} 会改变值（{@code \/} 求值后是 {@code /}），且 {@code </} 会提前闭合 script。
      */
     private static String toJsStringArray(String puml) {

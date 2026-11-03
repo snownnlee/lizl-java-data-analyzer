@@ -213,7 +213,8 @@ public class OrderAnalysis {
 内置 `SimpleAnalysisProvider` 负责登记对象、按需分析：
 
 ```java
-SimpleAnalysisProvider provider = new SimpleAnalysisProvider(JavaDataAnalyzer.runningConfigurer()
+SimpleAnalysisProvider provider = new SimpleAnalysisProvider("manual",
+        JavaDataAnalyzer.runningConfigurer()
         .setOutputRootDir("./analysis"))   // 分析粒度与产物形态全由这个 configurer 决定
         .add("order", order)
         .add(user);                        // 不传名字时按类简单名自动命名
@@ -231,13 +232,22 @@ provider.close();
 
 - 对象**首次被访问时才分析**（懒分析），`?rebuild=true` 强制重算
 - `provider` 独占传入的 `RunningConfigurer`，不要与其他线程共用同一实例
+- 对象名不断变化、又不想让登记表无限增长时，改用 `new BoundedSimpleAnalysisProvider("manual", 500, configurer)`：
+  登记数超过容量后按**登记顺序**淘汰最早的对象（只摘登记，已落盘产物保留）
 - 对象来源不是手工登记时（例如自有容器），实现 `AnalysisProvider` 即可接入
+- 需要多个聚合容器时，服务器只认 `HttpServiceHandler`、容器管理是 beans 通道自己的事：
+  `HttpAnalysisServer server = new HttpAnalysisServer().register(new BeansHttpServiceHandler(pa, pb))`，
+  容器注册名取自各 provider 的 `AnalysisProvider.getName()`（运行期也可 `addProvider` / `removeProvider`）。
+  浏览路径与容器数量无关：`GET /beans` **无论几个容器都先出容器选择页**，之后各请求用 `?container=容器名`
+  指定；不带 `container` 时 `POST /beans` 返回容器名数组、`GET /bean/{beanName}` 返回 404 并提示补参数。
+  容器展示名可通过实现 `AnalysisProvider.getDisplayName()` 定制（缺省用 `getName()` 的注册名）
 
 | 请求 | 说明 |
 |---|---|
-| `GET /beans` | Bean 列表页面 |
-| `POST /beans` | Bean 名称列表（JSON 字符串数组） |
-| `GET /bean/{beanName}` | 指定 Bean 的分析结果 |
+| `GET /beans` | 容器选择页（只有一个容器时也一样） |
+| `GET /beans?container={name}` | 该容器的 Bean 列表页 |
+| `POST /beans` | 不带 `container`：容器名数组；带 `container`：该容器的 Bean 名称数组 |
+| `GET /bean/{beanName}?container={name}` | 指定容器的某个 Bean 分析结果（不带 `container` 为 404 提示） |
 
 以上均支持 `?rebuild=true`。路径前缀、端口、绑定地址、令牌与 Basic 认证的配置方式见
 [Spring Boot 配置项说明](#7-配置项说明)（Spring 下由配置文件提供，非 Spring 下由 `HttpAnalysisServer`
@@ -248,7 +258,8 @@ provider.close();
 
 ```java
 server.register(new HttpServiceHandler() {
-    public Collection<String> getPaths()            { return Collections.singletonList("/custom"); }
+    public String getEntryPath()                    { return "/custom"; }      // 索引页链接与启动日志用
+    public Collection<String> getPathPrefixes()     { return PREFIXES; }      // 固定集合，路由匹配用
     public boolean isAvailable()                    { return true; }          // false 时该组返回 404 + 提示
     public String unavailableMessage()              { return "custom 通道未启用"; }
     public void handle(HttpExchange ex, String path) { HttpResponses.text(ex, 200, "ok"); }
@@ -256,8 +267,9 @@ server.register(new HttpServiceHandler() {
 });
 ```
 
-路由按**最长前缀匹配**（`/bean/` 优先于 `/beans`，`/interceptors` 不会误命中 `/interceptor`），
-根路径索引页的卡片与链接由注册表自动生成（并自动带上 token）。
+路由按 `getPathPrefixes()` 做**最长前缀匹配**，该集合是处理器的固有声明，实现方应返回常量而不是每次调用新建
+（beans 通道就是这样同时声明 `/beans` 与 `/bean/`，所以 `/bean/` 优先于 `/beans`，`/interceptors` 不会误命中
+`/interceptor`）。根路径索引页的卡片与链接由注册表按 `getEntryPath()` 自动生成（并自动带上 token）。
 
 Spring 环境下不必手工注册：容器里**任何** `HttpServiceHandler` Bean 都会被 `server.enable=true` 的服务自动收集挂载
 （beans 与 interceptor 两个通道就是这样各自提供自己处理器的），新增通道只需在自己的自动配置里提供一个该类型的 Bean。

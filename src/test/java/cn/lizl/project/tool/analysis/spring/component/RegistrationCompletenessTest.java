@@ -1,7 +1,7 @@
 package cn.lizl.project.tool.analysis.spring.component;
 
 import cn.lizl.project.tool.analysis.spring.beans.BeansAutoConfiguration;
-import cn.lizl.project.tool.analysis.spring.beans.JavaDataAnalyzerLifecycleHandler;
+import cn.lizl.project.tool.analysis.spring.beans.SpringBeansAnalysisProvider;
 import cn.lizl.project.tool.analysis.spring.beans.BeansProperties;
 import cn.lizl.project.tool.analysis.support.TestSupport;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,8 +45,8 @@ class RegistrationCompletenessTest {
         // lazy=false 让分析也排进执行器：单线程被执行器占住，异步登记就必然滞后
         properties.setLazy(false);
 
-        JavaDataAnalyzerLifecycleHandler handler =
-                new JavaDataAnalyzerLifecycleHandler(properties::newRunningConfigurer, properties);
+        SpringBeansAnalysisProvider handler =
+                new SpringBeansAnalysisProvider(properties::newRunningConfigurer, properties);
         try {
             handler.postProcessAfterInitialization(new HeavyGraph(), "heavy");
             // 等到 "heavy" 出现在列表里，此时执行器正在分析它（这一步新旧实现都能等到）
@@ -76,7 +76,7 @@ class RegistrationCompletenessTest {
         context.register(BeansAutoConfiguration.class, SampleConfig.class);
         context.refresh();
         try {
-            JavaDataAnalyzerLifecycleHandler handler = context.getBean(JavaDataAnalyzerLifecycleHandler.class);
+            SpringBeansAnalysisProvider handler = context.getBean(SpringBeansAnalysisProvider.class);
 
             // 不 sleep、不轮询：refresh 返回时就该是全量
             List<String> beanNames = handler.getBeanNames(false);
@@ -87,7 +87,7 @@ class RegistrationCompletenessTest {
         }
     }
 
-    private void waitUntilRegistered(JavaDataAnalyzerLifecycleHandler handler, String beanName) throws InterruptedException {
+    private void waitUntilRegistered(SpringBeansAnalysisProvider handler, String beanName) throws InterruptedException {
         long deadline = System.currentTimeMillis() + 5000;
         while (!handler.getBeanNames(false).contains(beanName) && System.currentTimeMillis() < deadline) {
             Thread.sleep(5);

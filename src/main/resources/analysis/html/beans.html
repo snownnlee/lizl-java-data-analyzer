@@ -364,7 +364,7 @@
 <div class="particles" id="particles"></div>
 <div class="container">
     <header>
-        <h1>Beans</h1>
+        <h1 id="pageTitle">Beans</h1>
         <div class="search-container">
             <div class="search-box">
                 <label for="searchInput"></label><input type="text" id="searchInput" placeholder="搜索Beans...">
@@ -394,11 +394,23 @@
         let allBeans = [];
 
         // 详情链接必须带上当前页的 token：页面与列表请求都带着它，唯独点进详情是个新请求，不带就直接 401。
-        // 只挑 token 一个参数，避免把 rebuild 之类也捎过去（会让每次点开都重算）。
+        // 多容器时还要带上 container（/bean/{name} 靠它定位容器）；只挑这两个参数，
+        // 避免把 rebuild 之类也捎过去（会让每次点开都重算）。
         const detailQuery = (function () {
-            const token = new URLSearchParams(window.location.search).get('token');
-            return token ? '?token=' + encodeURIComponent(token) : '';
+            const params = new URLSearchParams(window.location.search);
+            const kept = new URLSearchParams();
+            const token = params.get('token');
+            if (token) kept.set('token', token);
+            const container = params.get('container');
+            if (container) kept.set('container', container);
+            const query = kept.toString();
+            return query ? '?' + query : '';
         })();
+
+        const currentContainer = new URLSearchParams(window.location.search).get('container');
+        if (currentContainer) {
+            document.getElementById('pageTitle').textContent = 'Beans · ' + currentContainer;
+        }
 
         function createParticles() {
             const particlesContainer = document.getElementById('particles');

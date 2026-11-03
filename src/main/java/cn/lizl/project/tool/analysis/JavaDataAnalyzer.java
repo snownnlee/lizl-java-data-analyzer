@@ -5,6 +5,7 @@ import cn.lizl.project.tool.analysis.api.RunningConfigurer;
 import cn.lizl.project.tool.analysis.core.DefaultGlobalConfigurer;
 import cn.lizl.project.tool.analysis.core.DefaultRunningConfigurer;
 import cn.lizl.project.tool.analysis.http.AnalysisProvider;
+import cn.lizl.project.tool.analysis.http.BeansHttpServiceHandler;
 import cn.lizl.project.tool.analysis.http.HttpAnalysisServer;
 
 /**
@@ -35,12 +36,18 @@ public final class JavaDataAnalyzer {
     }
 
     /**
-     * 创建基于 JDK 原生 HttpServer 的独立 HTTP 服务。返回的实例默认未启动，用完调 {@code stop()} 释放端口。
+     * 创建基于 JDK 原生 HttpServer 的独立 HTTP 服务，预挂 beans 通道。返回的实例默认未启动，
+     * 用完调 {@code stop()} 释放端口。
+     *
+     * <p>便捷组装层：服务器本身只认识 {@code HttpServiceHandler}，beans 概念由这里与
+     * {@link BeansHttpServiceHandler} 承接。要挂多个聚合容器，对返回实例上的 beans 处理器无法再拿到——
+     * 这种场景请自行 {@code register(new BeansHttpServiceHandler(pa, pb))}（容器名取自
+     * {@code AnalysisProvider#getName()}）或在实例上 {@code addProvider}。
      *
      * <p>除 token / Basic 鉴权外没有其他访问控制，绑定地址建议限定在 127.0.0.1；确需对外暴露时请设置
      * {@link HttpAnalysisServer#setToken(String)} 或 {@link HttpAnalysisServer#setBasicAuth(String, String)}。
      */
     public static HttpAnalysisServer httpServer(AnalysisProvider provider) {
-        return new HttpAnalysisServer(provider);
+        return new HttpAnalysisServer().register(new BeansHttpServiceHandler(provider));
     }
 }

@@ -109,24 +109,4 @@ public final class HttpResponses {
         String lower = fileName.toLowerCase();
         return lower.endsWith(".html") ? CONTENT_TYPE_HTML : CONTENT_TYPE_TEXT;
     }
-
-    /** 动态内容（前缀、token、产物名）进 HTML 前一律转义，避免引号或尖括号破坏页面 */
-    public static String escapeHtml(String value) {
-        if (value == null) {
-            return "";
-        }
-        StringBuilder out = new StringBuilder(value.length() + 16);
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            switch (c) {
-                case '&': out.append("&amp;"); break;
-                case '<': out.append("&lt;"); break;
-                case '>': out.append("&gt;"); break;
-                case '"': out.append("&quot;"); break;
-                case '\'': out.append("&#39;"); break;
-                default: out.append(c);
-            }
-        }
-        return out.toString();
-    }
 }

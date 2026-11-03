@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 请求拦截器通道的运行时控制。独立于任何 Web 容器：由 {@link InterceptorHttpService} 的
+ * 请求拦截器通道的运行时控制。独立于任何 Web 容器：由 {@link InterceptorHttpServiceHandler} 的
  * {@code /interceptor} 端点读写，实现方自行保证并发安全与状态语义。
  *
  * <p>这里的开关是<b>运行期捕获开关</b>（{@code interceptor.active}），不是通道装配开关

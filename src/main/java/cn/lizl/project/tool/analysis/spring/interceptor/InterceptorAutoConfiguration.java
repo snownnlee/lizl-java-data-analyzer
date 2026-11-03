@@ -37,7 +37,7 @@ public class InterceptorAutoConfiguration {
      */
     @Bean(destroyMethod = "shutdown")
     @Conditional(InterceptorEnabledCondition.class)
-    public InterceptorControl javaDataAnalyzerInterceptorControl(InterceptorProperties properties) {
+    public InterceptorControl interceptorControl(InterceptorProperties properties) {
         InterceptorControl control = new InterceptorControl(properties);
         if (!properties.isActive()) {
             LOG.warning("请求拦截器通道已装配，但捕获开关 interceptor.active 未开启（默认关闭），当前不会产生任何产物；"
@@ -60,9 +60,8 @@ public class InterceptorAutoConfiguration {
      */
     @Bean
     @Conditional(ServerEnabledCondition.class)
-    public HttpServiceHandler javaDataAnalyzerInterceptorHttpService(
-            ObjectProvider<InterceptorControlProvider> interceptorControl) {
-        return new InterceptorHttpService(interceptorControl.getIfAvailable());
+    public HttpServiceHandler interceptorHttpServiceHandler(ObjectProvider<InterceptorControlProvider> interceptorControl) {
+        return new InterceptorHttpServiceHandler(interceptorControl.getIfAvailable());
     }
 
     /**
@@ -71,7 +70,7 @@ public class InterceptorAutoConfiguration {
      */
     @Bean
     @Conditional({InterceptorEnabledCondition.class, ServerDisabledCondition.class})
-    public SmartInitializingSingleton javaDataAnalyzerInterceptorServerDisabledReporter() {
+    public SmartInitializingSingleton interceptorServerDisabledReporter() {
         return () -> LOG.warning("请求拦截器通道已装配，但 HTTP 服务未开启（" + ServerProperties.PREFIX + ".enable=false）："
                 + "捕获与落盘不受影响（仍需 " + InterceptorProperties.PREFIX + ".active=true），产物写入 "
                 + InterceptorProperties.PREFIX + ".output-root-dir，但没有 /interceptor 管理页，"
@@ -88,8 +87,7 @@ public class InterceptorAutoConfiguration {
     static class InterceptorWebConfiguration {
 
         @Bean
-        static InterceptorArgumentCaptureInstaller javaDataAnalyzerInterceptorInstaller(
-                ObjectProvider<InterceptorControl> interceptorControl) {
+        static InterceptorArgumentCaptureInstaller interceptorArgumentCaptureInstaller(ObjectProvider<InterceptorControl> interceptorControl) {
             return new InterceptorArgumentCaptureInstaller(interceptorControl::getIfAvailable);
         }
     }
@@ -104,8 +102,7 @@ public class InterceptorAutoConfiguration {
     static class InterceptorWebFluxConfiguration {
 
         @Bean
-        static ReactiveArgumentCaptureInstaller javaDataAnalyzerReactiveInstaller(
-                ObjectProvider<InterceptorControl> interceptorControl) {
+        static ReactiveArgumentCaptureInstaller reactiveArgumentCaptureInstaller(ObjectProvider<InterceptorControl> interceptorControl) {
             return new ReactiveArgumentCaptureInstaller(interceptorControl::getIfAvailable);
         }
     }

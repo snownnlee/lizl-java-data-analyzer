@@ -29,7 +29,7 @@ import java.util.Map;
  * <p>本类属于拦截器通道（Spring 特性），因此放在 {@code spring.interceptor} 而<b>不是</b>通用 http 包；
  * 它只依赖 {@link HttpServiceHandler} 等通用契约与 {@link InterceptorControlProvider}，不直接依赖 Spring API。
  */
-public final class InterceptorHttpService implements HttpServiceHandler {
+public final class InterceptorHttpServiceHandler implements HttpServiceHandler {
 
     static final String INTERCEPTOR_PATH = "/interceptor";
 
@@ -41,17 +41,25 @@ public final class InterceptorHttpService implements HttpServiceHandler {
 
     private static final String TEMPLATE_NAME = "interceptor.html";
 
+    /** 路由前缀只有入口路径一个，但仍做成常量：默认 {@code supports} 每个请求都会遍历它 */
+    private static final Collection<String> PATH_PREFIXES = Collections.singletonList(INTERCEPTOR_PATH);
+
     private final InterceptorControlProvider control;
 
     private volatile byte[] templateBytes;
 
-    public InterceptorHttpService(InterceptorControlProvider control) {
+    public InterceptorHttpServiceHandler(InterceptorControlProvider control) {
         this.control = control;
     }
 
     @Override
-    public Collection<String> getPaths() {
-        return Collections.singletonList(INTERCEPTOR_PATH);
+    public String getEntryPath() {
+        return INTERCEPTOR_PATH;
+    }
+
+    @Override
+    public Collection<String> getPathPrefixes() {
+        return PATH_PREFIXES;
     }
 
     @Override

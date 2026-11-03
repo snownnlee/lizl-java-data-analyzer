@@ -12,9 +12,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.LinkedHashMap;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -26,8 +25,9 @@ import java.util.logging.Logger;
  * 基于 JDK 原生 {@link HttpServer} 的独立 HTTP 服务，不依赖任何 Web 容器，也不依赖 Spring。
  *
  * <p>本类只负责四件事：<b>生命周期</b>（端口/地址/线程/启停）、<b>鉴权</b>（token / HTTP Basic / 跨站写校验）、
- * <b>路由</b>（按路径把请求交给注册的 {@link HttpServiceHandler}）、<b>根路径索引页</b>（列出已挂载的处理器）。
- * 具体端点由各处理器自己实现，新增一种服务只需实现接口并 {@link #register(HttpServiceHandler)} 一次。
+ * <b>路由</b>（按 {@link HttpServiceHandler#supports} 把请求交给认领的处理器）、<b>根路径索引页</b>
+ * （列出已挂载的处理器）。具体端点由各处理器自己实现，新增一种服务只需实现接口并
+ * {@link #register(HttpServiceHandler)} 一次。
  *
  * <p>两种鉴权，都未配置时不校验，都配置时任一通过即可：{@link #setToken(String)}（query 或
  * {@value #TOKEN_HEADER} 请求头）、{@link #setBasicAuth(String, String)}（HTTP Basic）。
@@ -63,8 +63,16 @@ public final class HttpAnalysisServer {
 
     private final Logger log = Logger.getLogger(getClass().getName());
 
-    /** 有序注册表：索引页卡片顺序与注册顺序一致；同路径后注册的覆盖先注册的 */
-    private final Map<String, HttpServiceHandler> handlers = new LinkedHashMap<>();
+    /**
+     * 有序注册表：索引页卡片顺序与注册顺序一致，路由也按此顺序先到先得。
+     *
+     * <p>写时复制：注册是低频操作，{@link #register} 复制一份改完再把引用指向新快照；读路径直接遍历
+     * 当前引用，拿到的就是这份只读快照，不必再拷贝一次列表。
+     *
+     * <p>{@code volatile} 是读路径不加锁的前提：注册写入后立即可见，读方永远看到完整快照。
+     * 发布出去的快照只读，遍历期间即便有并发注册也不会有结构变更。
+     */
+    private volatile List<HttpServiceHandler> handlers = Collections.emptyList();
 
     /** 索引页渲染（模板在 classpath 的 index.html，Java 侧只装配数据） */
     private final IndexPageRenderer indexPageRenderer = new IndexPageRenderer();
@@ -92,29 +100,25 @@ public final class HttpAnalysisServer {
     public HttpAnalysisServer() {
     }
 
-    /** 便捷构造：等价于 {@code new HttpAnalysisServer().setAnalysisProvider(provider)} */
-    public HttpAnalysisServer(AnalysisProvider provider) {
-        setAnalysisProvider(provider);
-    }
-
     /**
-     * 挂载一个服务处理器。同一路径重复注册时后者覆盖前者，便于运行期替换实现。
+     * 挂载一个服务处理器。重复注册同一实例为幂等操作；路由按注册顺序先到先得，
+     * 处理器应只在 {@link HttpServiceHandler#supports} 里认领真正属于自己的请求。
+     *
+     * <p>写时复制：复制当前快照、追加，再把字段指向新快照。方法同步只为串行化「读字段—替换」这一段，
+     * 读方拿到的是不可变快照，遍历过程不受后续注册影响。
      */
     public synchronized HttpAnalysisServer register(HttpServiceHandler handler) {
         if (handler == null) {
             throw new IllegalArgumentException("handler 不能为 null");
         }
-        for (String path : handler.getPaths()) {
-            handlers.put(path, handler);
+        if (handlers.contains(handler)) {
+            return this;
         }
+        List<HttpServiceHandler> updated = new ArrayList<>(handlers.size() + 1);
+        updated.addAll(handlers);
+        updated.add(handler);
+        handlers = Collections.unmodifiableList(updated);
         return this;
-    }
-
-    /**
-     * 挂载 beans 通道；不设置时该组返回 404 + 提示。可在服务启动前或运行中调用。
-     */
-    public HttpAnalysisServer setAnalysisProvider(AnalysisProvider provider) {
-        return register(new BeansHttpService(provider));
     }
 
     /**
@@ -234,9 +238,10 @@ public final class HttpAnalysisServer {
         this.boundPort = created.getAddress().getPort();
         log.info("JavaDataAnalyzer 独立 HTTP 服务已启动 ===> " + logUrl("/")
                 + (token == null ? "" : "（已启用 token 校验；完整带 token 的访问地址请用 getAccessUrl() 获取，不落日志）"));
-        for (HttpServiceHandler handler : distinctHandlers()) {
+        for (HttpServiceHandler handler : handlers) {
             if (handler.isAvailable()) {
-                log.info("通道已挂载 ===> " + logUrl(handler.getPaths().iterator().next()));
+                String entryPath = handler.getEntryPath();
+                log.info("通道已挂载 ===> " + logUrl(entryPath == null ? "" : entryPath));
             }
         }
         if (availableHandlers().isEmpty()) {
@@ -305,7 +310,9 @@ public final class HttpAnalysisServer {
                 return;
             }
 
-            HttpServiceHandler handler = resolve(relativePath);
+            // 相对路径放进 attribute：处理器不知道 path-prefix（服务器运行时可配），supports 里从这里取
+            exchange.setAttribute(HttpServiceHandler.RELATIVE_PATH_ATTRIBUTE, relativePath);
+            HttpServiceHandler handler = resolve(exchange);
             if (handler == null) {
                 HttpResponses.text(exchange, 404, "not found");
                 return;
@@ -328,25 +335,17 @@ public final class HttpAnalysisServer {
     }
 
     /**
-     * 最长前缀匹配：{@code /bean/alpha} 命中 {@code /bean/} 而不是 {@code /beans}；
-     * 前缀必须止于路径分隔符，避免 {@code /interceptors} 误命中 {@code /interceptor}。
+     * 按注册顺序问每个处理器 {@link HttpServiceHandler#supports}，先到先得。
+     * 匹配逻辑归处理器自管（默认实现做最长前缀），服务器不再做全局前缀仲裁。
      */
-    private HttpServiceHandler resolve(String relativePath) {
-        HttpServiceHandler matched = null;
-        int matchedLength = -1;
-        synchronized (this) {
-            for (Map.Entry<String, HttpServiceHandler> entry : handlers.entrySet()) {
-                String path = entry.getKey();
-                boolean hit = relativePath.equals(path)
-                        || (relativePath.startsWith(path)
-                        && (path.endsWith("/") || relativePath.charAt(path.length()) == '/'));
-                if (hit && path.length() > matchedLength) {
-                    matched = entry.getValue();
-                    matchedLength = path.length();
-                }
+    private HttpServiceHandler resolve(HttpExchange exchange) {
+        // 拿一次引用即可：快照只读，遍历期间即便有并发注册也不会有结构变更
+        for (HttpServiceHandler handler : handlers) {
+            if (handler.supports(exchange)) {
+                return handler;
             }
         }
-        return matched;
+        return null;
     }
 
     // ---------------- 索引页 ----------------
@@ -361,7 +360,7 @@ public final class HttpAnalysisServer {
         List<HttpServiceHandler> available = availableHandlers();
         if (available.isEmpty()) {
             StringBuilder message = new StringBuilder("没有可用的通道：所有通道都未启用");
-            for (HttpServiceHandler handler : distinctHandlers()) {
+            for (HttpServiceHandler handler : handlers) {
                 message.append(System.lineSeparator()).append("- ").append(handler.unavailableMessage());
             }
             HttpResponses.text(exchange, 404, message.toString());
@@ -370,12 +369,12 @@ public final class HttpAnalysisServer {
         String query = token == null || token.isEmpty()
                 ? "" : "?token=" + URLEncoder.encode(token, StandardCharsets.UTF_8.name());
         HttpResponses.html(exchange, 200,
-                indexPageRenderer.render(distinctHandlers(), available, pathPrefix, query));
+                indexPageRenderer.render(handlers, available, pathPrefix, query));
     }
 
     private List<HttpServiceHandler> availableHandlers() {
         List<HttpServiceHandler> available = new ArrayList<>();
-        for (HttpServiceHandler handler : distinctHandlers()) {
+        for (HttpServiceHandler handler : handlers) {
             if (handler.isAvailable() && handler.indexCard() != null) {
                 available.add(handler);
             }
@@ -383,22 +382,9 @@ public final class HttpAnalysisServer {
         return available;
     }
 
-    /** 去重：一个处理器可能注册了多个路径 */
-    private List<HttpServiceHandler> distinctHandlers() {
-        synchronized (this) {
-            List<HttpServiceHandler> distinct = new ArrayList<>();
-            for (HttpServiceHandler handler : handlers.values()) {
-                if (!distinct.contains(handler)) {
-                    distinct.add(handler);
-                }
-            }
-            return distinct;
-        }
-    }
-
     private String unavailableSummary() {
         StringBuilder summary = new StringBuilder();
-        for (HttpServiceHandler handler : distinctHandlers()) {
+        for (HttpServiceHandler handler : handlers) {
             if (!handler.isAvailable()) {
                 if (summary.length() > 0) {
                     summary.append("；");

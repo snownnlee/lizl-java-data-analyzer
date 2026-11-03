@@ -22,9 +22,7 @@ class HtmlRender extends BaseRender {
 
     private static final String OUTPUT_TEMPLATE_NAME = JavaDataAnalyzer.class.getSimpleName() + FILE_EXTENSION;
 
-    private static final String TITLE_PLACEHOLDER = "${title}";
-
-    private static final String CONTENT_PLACEHOLDER = "${content}";
+    private static final String[] PLACEHOLDERS = {"${title}", "${content}"};
 
     HtmlRender(RunningConfig runningConfig) {
         super(runningConfig, FILE_EXTENSION);
@@ -37,7 +35,7 @@ class HtmlRender extends BaseRender {
             renderClassModel(classModel, true, false, content);
         }
         return HtmlTemplates.fill(HtmlTemplates.load(OUTPUT_TEMPLATE_NAME),
-                new String[]{TITLE_PLACEHOLDER, CONTENT_PLACEHOLDER},
+                PLACEHOLDERS,
                 new String[]{buildTitle(classModels), content.toString()});
     }
 

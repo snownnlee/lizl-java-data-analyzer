@@ -1,8 +1,8 @@
 package cn.lizl.project.tool.analysis.spring.interceptor;
 
 import cn.lizl.project.tool.analysis.http.AnalysisProvider;
+import cn.lizl.project.tool.analysis.http.BeansHttpServiceHandler;
 import cn.lizl.project.tool.analysis.http.HttpAnalysisServer;
-import cn.lizl.project.tool.analysis.http.HttpServiceHandler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -14,7 +14,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,8 +39,9 @@ class InterceptorEndpointTest {
         RecordingProvider provider = new RecordingProvider(state);
         provider.outputs.put("a.html", new File("a.html"));
 
-        HttpAnalysisServer server = new HttpAnalysisServer(new EmptyProvider())
-                .register(new InterceptorHttpService(provider));
+        HttpAnalysisServer server = new HttpAnalysisServer()
+                .register(new BeansHttpServiceHandler(new EmptyProvider()))
+                .register(new InterceptorHttpServiceHandler(provider));
         server.setPort(0);
         server.start();
         try {
@@ -81,7 +81,7 @@ class InterceptorEndpointTest {
     @Test
     @DisplayName("未挂载控制实现时 /interceptor 整组 404，不暴露幽灵端点")
     void shouldReturn404WithoutProvider() throws IOException {
-        HttpAnalysisServer server = new HttpAnalysisServer(new EmptyProvider());
+        HttpAnalysisServer server = new HttpAnalysisServer().register(new BeansHttpServiceHandler(new EmptyProvider()));
         server.setPort(0);
         server.start();
         try {
@@ -132,6 +132,11 @@ class InterceptorEndpointTest {
     }
 
     private static final class EmptyProvider implements AnalysisProvider {
+
+        @Override
+        public String getName() {
+            return "empty";
+        }
 
         @Override
         public java.util.List<String> getBeanNames(boolean rebuild) {

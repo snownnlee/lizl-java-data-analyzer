@@ -16,6 +16,8 @@ class MermaidHtmlRender extends BaseRender {
 
     private static final String SHELL_TEMPLATE = "mermaid-shell.html";
 
+    private static final String[] PLACEHOLDERS = {"${favicon}", "${title}", "${mermaidFile}", "${diagram}"};
+
     private final MermaidRender mermaidRender;
 
     MermaidHtmlRender(RunningConfig runningConfig) {
@@ -27,7 +29,7 @@ class MermaidHtmlRender extends BaseRender {
     public String render(ClassModel[] classModels) {
         String diagram = mermaidRender.render(classModels);
         return HtmlTemplates.fill(HtmlTemplates.load(SHELL_TEMPLATE),
-                new String[]{"${favicon}", "${title}", "${mermaidFile}", "${diagram}"},
+                PLACEHOLDERS,
                 new String[]{PumlHtmlRender.FAVICON_DATA_URI,
                         HtmlTemplates.escapeHtml(buildTitle(classModels)),
                         FrontendAssets.MERMAID, HtmlTemplates.escapeHtml(diagram)});

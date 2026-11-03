@@ -34,6 +34,13 @@ class HttpAnalysisServerTest {
 
     private static final String PREFIX = HttpAnalysisServer.DEFAULT_PATH_PREFIX;
 
+    /** 处理器桩的路由前缀：契约要求返回固定集合，这里同样做成常量 */
+    private static final java.util.Collection<String> CUSTOM_PREFIXES = java.util.Collections.singletonList("/custom");
+
+    private static final java.util.Collection<String> OFF_PREFIXES = java.util.Collections.singletonList("/off");
+
+    private static final java.util.Collection<String> FLEX_PREFIXES = java.util.Collections.singletonList("/flex");
+
     @TempDir
     Path tempDir;
 
@@ -48,7 +55,7 @@ class HttpAnalysisServerTest {
         resultFile = tempDir.resolve("alpha.html").toFile();
         Files.write(resultFile.toPath(), "<html><body>ALPHA_REPORT</body></html>".getBytes(StandardCharsets.UTF_8));
         provider = new StubProvider(resultFile);
-        server = new HttpAnalysisServer(provider).setPort(0);
+        server = new HttpAnalysisServer().register(new BeansHttpServiceHandler(provider)).setPort(0);
     }
 
     @AfterEach
@@ -89,7 +96,7 @@ class HttpAnalysisServerTest {
     void shouldReturnBeanNamesAsJson() throws IOException {
         server.start();
 
-        Response response = request(PREFIX + "/beans?rebuild=true", "POST", null);
+        Response response = request(PREFIX + "/beans?container=stub&rebuild=true", "POST", null);
 
         assertEquals(200, response.status);
         assertTrue(response.contentType.startsWith("application/json"), "实际 Content-Type：" + response.contentType);
@@ -105,7 +112,7 @@ class HttpAnalysisServerTest {
     void shouldServeAnalysisResult() throws IOException {
         server.start();
 
-        Response response = get(PREFIX + "/bean/" + "alpha", null);
+        Response response = get(PREFIX + "/bean/" + "alpha?container=stub", null);
 
         assertEquals(200, response.status);
         assertEquals("<html><body>ALPHA_REPORT</body></html>", response.body);
@@ -154,8 +161,13 @@ class HttpAnalysisServerTest {
     void shouldDispatchToRegisteredHandler() throws IOException {
         server.register(new HttpServiceHandler() {
                     @Override
-                    public java.util.Collection<String> getPaths() {
-                        return java.util.Collections.singletonList("/custom");
+                    public String getEntryPath() {
+                        return "/custom";
+                    }
+
+                    @Override
+                    public java.util.Collection<String> getPathPrefixes() {
+                        return CUSTOM_PREFIXES;
                     }
 
                     @Override
@@ -181,8 +193,13 @@ class HttpAnalysisServerTest {
                 });
         server.register(new HttpServiceHandler() {
                     @Override
-                    public java.util.Collection<String> getPaths() {
-                        return java.util.Collections.singletonList("/off");
+                    public String getEntryPath() {
+                        return "/off";
+                    }
+
+                    @Override
+                    public java.util.Collection<String> getPathPrefixes() {
+                        return OFF_PREFIXES;
                     }
 
                     @Override
@@ -225,6 +242,54 @@ class HttpAnalysisServerTest {
             assertFalse(root.body.contains("{{"), "index.html 的占位符应被全部替换");
             assertFalse(root.body.contains("href=\"" + PREFIX + "/off\""), "不可用通道不给链接");
             assertTrue(root.body.contains("off 通道未启用"), "不可用通道应在缺失列表里提示");
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("处理器覆盖 supports 可自主路由：入口路径之外的路径也能认领")
+    void shouldRespectCustomSupports() throws IOException {
+        server.register(new HttpServiceHandler() {
+                    @Override
+                    public String getEntryPath() {
+                        // 入口路径只供索引页与启动日志展示；路由完全由自定义 supports 决定
+                        return "/flex";
+                    }
+
+                    @Override
+                    public java.util.Collection<String> getPathPrefixes() {
+                        return FLEX_PREFIXES;
+                    }
+
+                    @Override
+                    public boolean supports(com.sun.net.httpserver.HttpExchange exchange) {
+                        Object attribute = exchange.getAttribute(RELATIVE_PATH_ATTRIBUTE);
+                        return attribute instanceof String && ((String) attribute).startsWith("/flex");
+                    }
+
+                    @Override
+                    public boolean isAvailable() {
+                        return true;
+                    }
+
+                    @Override
+                    public String unavailableMessage() {
+                        return "flex 通道未启用";
+                    }
+
+                    @Override
+                    public void handle(com.sun.net.httpserver.HttpExchange exchange, String relativePath)
+                            throws IOException {
+                        HttpResponses.text(exchange, 200, "flex:" + relativePath);
+                    }
+                });
+        server.start();
+        try {
+            Response extended = get(PREFIX + "/flex-extra", null);
+            assertEquals(200, extended.status,
+                    "默认 supports 不会让 /flex 命中 /flex-extra（分隔符边界），自定义 supports 可以");
+            assertEquals("flex:/flex-extra", extended.body);
         } finally {
             server.stop();
         }
@@ -277,7 +342,7 @@ class HttpAnalysisServerTest {
         assertEquals(401, get(PREFIX + "/beans?token=anything", null).status, "未配 token 时 token 不算凭证");
 
         assertEquals(200, request(PREFIX + "/beans", "GET", null, basic("admin", "p@ss")).status);
-        assertEquals(200, request(PREFIX + "/bean/alpha", "GET", null, basic("admin", "p@ss")).status);
+        assertEquals(200, request(PREFIX + "/bean/alpha?container=stub", "GET", null, basic("admin", "p@ss")).status);
     }
 
     @Test
@@ -518,6 +583,11 @@ class HttpAnalysisServerTest {
 
         private StubProvider(File file) {
             this.file = file;
+        }
+
+        @Override
+        public String getName() {
+            return "stub";
         }
 
         @Override

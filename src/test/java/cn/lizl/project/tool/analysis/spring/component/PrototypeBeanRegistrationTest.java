@@ -1,6 +1,6 @@
 package cn.lizl.project.tool.analysis.spring.component;
 
-import cn.lizl.project.tool.analysis.spring.beans.JavaDataAnalyzerLifecycleHandler;
+import cn.lizl.project.tool.analysis.spring.beans.SpringBeansAnalysisProvider;
 import cn.lizl.project.tool.analysis.spring.beans.BeansProperties;
 import cn.lizl.project.tool.analysis.support.TestSupport;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,8 +50,8 @@ class PrototypeBeanRegistrationTest {
                 .setScope("prototype")
                 .getBeanDefinition());
 
-        JavaDataAnalyzerLifecycleHandler handler =
-                new JavaDataAnalyzerLifecycleHandler(properties::newRunningConfigurer, properties);
+        SpringBeansAnalysisProvider handler =
+                new SpringBeansAnalysisProvider(properties::newRunningConfigurer, properties);
         handler.setBeanFactory(beanFactory);
         try {
             PrototypeSample first = beanFactory.getBean("proto", PrototypeSample.class);
@@ -75,7 +75,7 @@ class PrototypeBeanRegistrationTest {
     }
 
     /** 登记是异步的，等到产物反映新实例（或超时）为止 */
-    private File waitForContent(JavaDataAnalyzerLifecycleHandler handler, String expected) throws Exception {
+    private File waitForContent(SpringBeansAnalysisProvider handler, String expected) throws Exception {
         File resultFile = null;
         long deadline = System.currentTimeMillis() + 3000;
         while (System.currentTimeMillis() < deadline) {

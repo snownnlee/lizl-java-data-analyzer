@@ -1,7 +1,7 @@
 package cn.lizl.project.tool.analysis.spring.beans;
 
 import cn.lizl.project.tool.analysis.http.AnalysisProvider;
-import cn.lizl.project.tool.analysis.http.BeansHttpService;
+import cn.lizl.project.tool.analysis.http.BeansHttpServiceHandler;
 import cn.lizl.project.tool.analysis.http.HttpServiceHandler;
 import cn.lizl.project.tool.analysis.spring.server.ServerDisabledCondition;
 import cn.lizl.project.tool.analysis.spring.server.ServerEnabledCondition;
@@ -33,10 +33,10 @@ public class BeansAutoConfiguration {
     /** 是否启用 bean 采集：没启用时连采集处理器都不建（端点处理器是否注册见下一个方法） */
     @Bean
     @Conditional(BeansEnabledCondition.class)
-    public JavaDataAnalyzerLifecycleHandler javaDataAnalyzerLifecycleHandler(BeansProperties properties) {
+    public SpringBeansAnalysisProvider springBeansAnalysisProvider(BeansProperties properties) {
         // RunningConfigurer 有状态（攒待分析对象、clear 清空），刻意不注册成 Bean：
         // 只由 handler 独占并串行使用，避免被其他方注入后并发操作
-        return new JavaDataAnalyzerLifecycleHandler(properties::newRunningConfigurer, properties);
+        return new SpringBeansAnalysisProvider(properties::newRunningConfigurer, properties);
     }
 
     /**
@@ -46,14 +46,17 @@ public class BeansAutoConfiguration {
      * <ul>
      *   <li>{@link ServerEnabledCondition}：<b>没有 HTTP 服务就不要这个 Bean</b>——处理器只被
      *       {@code ServerAutoConfiguration} 消费，服务不装配时它只是一份没人读的模板缓存</li>
-     *   <li>不看 {@code beans.enable}：服务在、通道没开时 provider 为 null，处理器照常注册，
+     *   <li>不看 {@code beans.enable}：服务在、通道没开时没有任何 provider，处理器照常注册，
      *       访问该组能拿到「beans 通道未启用」的明确提示，而不是干巴巴的 not found</li>
      * </ul>
+     *
+     * <p>容器注册名由各 provider 的 {@code getName()} 决定（本通道的实现固定返回 {@code SpringBeans}），
+     * 容器间是并列关系：都挂上；页面恒先出容器选择页，哪怕只挂了一个容器。
      */
     @Bean
     @Conditional(ServerEnabledCondition.class)
-    public HttpServiceHandler javaDataAnalyzerBeansHttpService(ObjectProvider<AnalysisProvider> analysisProvider) {
-        return new BeansHttpService(analysisProvider.getIfAvailable());
+    public HttpServiceHandler beansHttpServiceHandler(ObjectProvider<AnalysisProvider> analysisProvider) {
+        return new BeansHttpServiceHandler(analysisProvider.orderedStream().toArray(AnalysisProvider[]::new));
     }
 
     /**
@@ -62,7 +65,7 @@ public class BeansAutoConfiguration {
      */
     @Bean
     @Conditional({BeansEnabledCondition.class, ServerDisabledCondition.class})
-    public SmartInitializingSingleton javaDataAnalyzerBeansServerDisabledReporter() {
+    public SmartInitializingSingleton beansServerDisabledReporter() {
         return () -> LOG.warning("bean 采集通道已启用，但 HTTP 服务未开启（" + ServerProperties.PREFIX + ".enable=false）："
                 + "不会有任何产物。原因：lazy=true（默认）时只在首次访问 /bean/{name} 时才分析，"
                 + "而网页入口正是唯一入口。需要落盘请配置 " + BeansProperties.PREFIX + ".lazy=false，"

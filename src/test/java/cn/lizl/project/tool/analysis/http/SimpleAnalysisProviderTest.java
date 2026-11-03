@@ -35,7 +35,7 @@ class SimpleAnalysisProviderTest {
         // 全局配置是静态字段，用例之间必须显式复位，否则上一个用例的排除包/深度会渗进来
         TestSupport.resetGlobalConfig();
         RunningConfigurer configurer = JavaDataAnalyzer.runningConfigurer().setOutputRootDir(tempDir.toString());
-        provider = new SimpleAnalysisProvider(configurer);
+        provider = new SimpleAnalysisProvider("manual", configurer);
     }
 
     @AfterEach

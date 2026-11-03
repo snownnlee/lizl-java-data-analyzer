@@ -1,6 +1,7 @@
 package cn.lizl.project.tool.analysis.http;
 
-import java.io.IOException;
+import cn.lizl.project.tool.analysis.util.HtmlTemplates;
+
 import java.util.List;
 
 /**
@@ -13,11 +14,7 @@ final class IndexPageRenderer {
 
     private static final String TEMPLATE_NAME = "index.html";
 
-    private static final String CARDS_PLACEHOLDER = "{{cards}}";
-
-    private static final String MISSING_PLACEHOLDER = "{{missingBlock}}";
-
-    private volatile String template;
+    private static final String[] PLACEHOLDERS = {"{{cards}}", "{{missingBlock}}"};
 
     /**
      * @param orderedHandlers 全部已注册处理器（按注册顺序），用于生成卡片与缺失提示
@@ -26,22 +23,26 @@ final class IndexPageRenderer {
      * @param query           附带查询串（配置了 token 时是 {@code ?token=...}），可为空
      */
     String render(List<HttpServiceHandler> orderedHandlers, List<HttpServiceHandler> available,
-                  String pathPrefix, String query) throws IOException {
+                  String pathPrefix, String query) {
         StringBuilder cards = new StringBuilder();
         for (HttpServiceHandler handler : available) {
             HttpServiceHandler.IndexCard card = handler.indexCard();
             if (card == null) {
                 continue;
             }
-            String href = pathPrefix + handler.getPaths().iterator().next() + query;
-            cards.append(renderCard(card, href));
+            String entryPath = handler.getEntryPath();
+            if (entryPath == null || entryPath.trim().isEmpty()) {
+                // 没有入口路径就没有可点击的目标，宁可不出卡片也不要生成死链
+                continue;
+            }
+            cards.append(renderCard(card, pathPrefix + entryPath + query));
         }
 
         StringBuilder missingItems = new StringBuilder();
         for (HttpServiceHandler handler : orderedHandlers) {
             if (!handler.isAvailable()) {
                 missingItems.append("<li>")
-                        .append(HttpResponses.escapeHtml(handler.unavailableMessage()))
+                        .append(HtmlTemplates.escapeHtml(handler.unavailableMessage()))
                         .append("</li>");
             }
         }
@@ -49,31 +50,17 @@ final class IndexPageRenderer {
                 ? ""
                 : "<div class=\"missing\"><b>未装配的通道</b><ul>" + missingItems + "</ul></div>";
 
-        return loadTemplate()
-                .replace(CARDS_PLACEHOLDER, cards)
-                .replace(MISSING_PLACEHOLDER, missingBlock);
+        return HtmlTemplates.fill(HtmlTemplates.load(TEMPLATE_NAME),
+                        PLACEHOLDERS,
+                        new String[]{cards.toString(), missingBlock});
     }
 
     private String renderCard(HttpServiceHandler.IndexCard card, String href) {
         // 新标签页打开：从通道索引跳进具体页面后，原索引页仍留在，方便来回切换两个通道
-        return "<a class=\"card\" href=\"" + HttpResponses.escapeHtml(href)
+        return "<a class=\"card\" href=\"" + HtmlTemplates.escapeHtml(href)
                 + "\" target=\"_blank\" rel=\"noopener\">"
-                + "<span class=\"tag\">" + HttpResponses.escapeHtml(card.getTag()) + "</span>"
-                + "<div class=\"name\">" + HttpResponses.escapeHtml(card.getName()) + "</div>"
-                + "<div class=\"desc\">" + HttpResponses.escapeHtml(card.getDescription()) + "</div></a>";
-    }
-
-    /** 模板只读、进程内不变，读一次即可；读取失败直接抛出，属于打包错误而非运行期波动 */
-    private String loadTemplate() throws IOException {
-        String cached = template;
-        if (cached != null) {
-            return cached;
-        }
-        synchronized (this) {
-            if (template == null) {
-                template = new String(ClasspathResource.readHtml(TEMPLATE_NAME), java.nio.charset.StandardCharsets.UTF_8);
-            }
-            return template;
-        }
+                + "<span class=\"tag\">" + HtmlTemplates.escapeHtml(card.getTag()) + "</span>"
+                + "<div class=\"name\">" + HtmlTemplates.escapeHtml(card.getName()) + "</div>"
+                + "<div class=\"desc\">" + HtmlTemplates.escapeHtml(card.getDescription()) + "</div></a>";
     }
 }

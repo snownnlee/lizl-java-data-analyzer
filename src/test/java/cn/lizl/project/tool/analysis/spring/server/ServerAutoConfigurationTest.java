@@ -4,7 +4,7 @@ import cn.lizl.project.tool.analysis.http.HttpAnalysisServer;
 import cn.lizl.project.tool.analysis.http.HttpResponses;
 import cn.lizl.project.tool.analysis.http.HttpServiceHandler;
 import cn.lizl.project.tool.analysis.spring.beans.BeansAutoConfiguration;
-import cn.lizl.project.tool.analysis.spring.beans.JavaDataAnalyzerLifecycleHandler;
+import cn.lizl.project.tool.analysis.spring.beans.SpringBeansAnalysisProvider;
 import cn.lizl.project.tool.analysis.spring.interceptor.InterceptorAutoConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -178,7 +178,7 @@ class ServerAutoConfigurationTest {
         context.refresh();
         try {
             assertEquals(0, context.getBeanNamesForType(HttpAnalysisServer.class).length, "默认不应创建 HTTP 服务");
-            assertEquals(0, context.getBeanNamesForType(JavaDataAnalyzerLifecycleHandler.class).length, "默认不应装配 beans 通道");
+            assertEquals(0, context.getBeanNamesForType(SpringBeansAnalysisProvider.class).length, "默认不应装配 beans 通道");
             assertEquals(0, context.getBeanNamesForType(HttpServiceHandler.class).length,
                     "没有 HTTP 服务就不该有处理器 Bean");
         } finally {
@@ -206,7 +206,12 @@ class ServerAutoConfigurationTest {
     /** 自定义处理器：只实现契约，不碰任何通道配置 */
     static final class SampleHandler implements HttpServiceHandler {
         @Override
-        public java.util.Collection<String> getPaths() {
+        public String getEntryPath() {
+            return "/custom";
+        }
+
+        @Override
+        public java.util.Collection<String> getPathPrefixes() {
             return java.util.Collections.singletonList("/custom");
         }
 

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjMGEwZTE3Ii8+PGVsbGlwc2UgY3g9IjEwIiBjeT0iMTAiIHJ4PSI2IiByeT0iNCIgZmlsbD0iI2M2YzQ1ZSIgb3BhY2l0eT0iMC45Ii8+PGVsbGlwc2UgY3g9IjIyIiBjeT0iMTAiIHJ4PSI2IiByeT0iNCIgZmlsbD0iIzAwZGRmZiIgb3BhY2l0eT0iMC45Ii8+PGVsbGlwc2UgY3g9IjE2IiBjeT0iMjIiIHJ4PSI2IiByeT0iNCIgZmlsbD0iIzY0OTVlZCIgb3BhY2l0eT0iMC45Ii8+PGxpbmUgeDE9IjEwIiB5MT0iMTQiIHgyPSIxNiIgeTI9IjE4IiBzdHJva2U9IiNjNmM0NWUiIHN0cm9rZS13aWR0aD0iMS41IiBvcGFjaXR5PSIwLjYiLz48bGluZSB4MT0iMjIiIHkxPSIxNCIgeDI9IjE2IiB5Mj0iMTgiIHN0cm9rZT0iIzAwZGRmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIG9wYWNpdHk9IjAuNiIvPjwvc3ZnPg==">
+    <title>Beans · 容器</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei UI", ui-rounded, sans-serif;
+        }
+
+        body {
+            background-color: #0a0e17;
+            color: #c1c1c1;
+            font-family: "Microsoft YaHei UI", ui-rounded, sans-serif;
+            font-size: small;
+            padding: 20px;
+            padding-top: 170px;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 20px;
+            background: linear-gradient(45deg, #ff00ff22, #00ffff22, #ffaa0022, #ff00ff22);
+            backdrop-filter: blur(1px);
+            box-shadow: inset 0 0 20px #6495edaa;
+            background-color: rgba(10, 14, 23, 0.72);
+        }
+
+        h1 {
+            align-self: center;
+            background: linear-gradient(90deg, #ff00ff, #00ffff, #ffaa00, #64ff9e, #6495ed);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            font-size: 1.25rem;
+            margin: 0;
+            font-weight: 700;
+            letter-spacing: 1px;
+            filter: drop-shadow(0 0 6px rgba(100, 150, 255, 0.45));
+        }
+
+        .hint {
+            align-self: center;
+            color: rgba(160, 200, 255, 0.65);
+            font-size: 13px;
+            letter-spacing: 0.5px;
+        }
+
+        .containers-container {
+            margin: 0;
+            padding: 0;
+            border: 3px solid #6495ed99;
+            background-color: rgba(10, 15, 25, 0.8);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            transition: box-shadow .3s, border-color .3s;
+            position: relative;
+            overflow: hidden;
+            min-height: 300px;
+        }
+
+        .containers-container:hover {
+            box-shadow: 0 0 20px rgba(100, 149, 237, 0.3);
+            border-color: #00bfff;
+        }
+
+        .containers-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #ff00ff, #00ffff, #ffaa00, #64ff9e, #6495ed);
+        }
+
+        .containers-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            padding: 6px 0;
+        }
+
+        /* 卡片复用 bean-item 的视觉语言：左侧色条 + 玻璃内发光 + 色相轮换 */
+        .container-card {
+            --accent: 0, 255, 255;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            position: relative;
+            margin: 10px 10px 10px 20px;
+            padding: 12px 16px;
+            border: 2px solid rgba(44, 61, 89, 0.8);
+            border-left: 3px solid rgba(var(--accent), 0.85);
+            border-radius: 6px;
+            box-shadow:
+            inset 0 0 14px #4433ff99,
+            inset 16px -6px 18px -14px rgba(var(--accent), 0.65);
+            text-decoration: none;
+            transition: border-color .3s, box-shadow .3s, transform .3s;
+        }
+
+        .container-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(225deg, rgba(var(--accent), 0.8), transparent 62%);
+            border-radius: 0 4px 0 0;
+            opacity: .5;
+            transition: opacity .3s;
+        }
+
+        .container-card:hover {
+            border-color: rgba(var(--accent), 0.55);
+            border-left-color: rgb(var(--accent));
+            box-shadow:
+            inset 0 0 14px #4433ff99,
+            inset 16px -6px 22px -12px rgba(var(--accent), 0.95),
+            0 0 18px rgba(var(--accent), 0.22),
+            0 6px 18px rgba(0, 0, 0, 0.35);
+            transform: translateX(3px);
+        }
+
+        .container-card:hover::after {
+            opacity: 1;
+        }
+
+        .container-card:nth-child(5n + 1) { --accent: 0, 255, 255; }
+        .container-card:nth-child(5n + 2) { --accent: 100, 150, 255; }
+        .container-card:nth-child(5n + 3) { --accent: 255, 0, 255; }
+        .container-card:nth-child(5n + 4) { --accent: 255, 170, 0; }
+        .container-card:nth-child(5n + 5) { --accent: 100, 255, 158; }
+
+        .container-name {
+            color: rgb(var(--accent));
+            font-weight: bold;
+            font-size: 14px;
+            word-break: break-all;
+            transition: color .3s, text-shadow .3s;
+        }
+
+        .container-card:hover .container-name {
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(var(--accent), 0.75);
+        }
+
+        .container-meta {
+            color: rgba(160, 200, 255, 0.6);
+            font-size: 12px;
+            letter-spacing: 0.3px;
+            word-break: break-all;
+        }
+
+        .container-card::before {
+            content: '';
+            display: inline-block;
+            position: absolute;
+            left: -11px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-left: 5px solid rgba(var(--accent), 0.9);
+            border-top: 4px solid transparent;
+            border-bottom: 4px solid transparent;
+            transition: transform .3s;
+        }
+
+        .container-card:hover::before {
+            transform: translateY(-50%) translateX(3px);
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.1rem;
+            }
+            body {
+                padding-top: 140px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Beans · 聚合容器</h1>
+        <div class="hint">本进程装配了 {{count}} 个 Bean 聚合容器，选择一个进入查看其中的 Bean</div>
+    </header>
+    <main>
+        <div class="containers-container">
+            <div class="containers-list">
+                {{cards}}
+            </div>
+        </div>
+    </main>
+</div>
+</body>
+</html>

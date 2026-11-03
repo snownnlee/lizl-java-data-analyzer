@@ -29,11 +29,14 @@ import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class JavaDataAnalyzerLifecycleHandler
+public class SpringBeansAnalysisProvider
         implements EnvironmentAware, ApplicationContextAware, BeanFactoryAware,
         BeanPostProcessor, SmartInitializingSingleton, DisposableBean, AnalysisProvider {
 
     private static final String ZEROS = "00000000";
+
+    /** 容器注册名：本类只对应 Spring 的 bean 采集通道，固定为特定名字 */
+    private static final String ANALYSIS_PROVIDER_NAME = "SpringBeans";
 
     private Environment environment;
 
@@ -79,8 +82,8 @@ public class JavaDataAnalyzerLifecycleHandler
 
     private boolean singletonsInstantiated;
 
-    public JavaDataAnalyzerLifecycleHandler(Supplier<RunningConfigurer> configurerSupplier,
-                                            BeansProperties properties) {
+    public SpringBeansAnalysisProvider(Supplier<RunningConfigurer> configurerSupplier,
+                                       BeansProperties properties) {
         // 只创建一次，全程复用：配置与 render 实例都由后续每次分析共享
         this.runningConfigurer = configurerSupplier.get();
         this.properties = properties;
@@ -180,6 +183,12 @@ public class JavaDataAnalyzerLifecycleHandler
             beanNameToOutputFileMap.remove(beanName);
         }
         return created;
+    }
+
+    /** 容器注册名固定：本类就是 Spring 的 bean 采集通道，与它在容器里的 Bean 名无关 */
+    @Override
+    public String getName() {
+        return ANALYSIS_PROVIDER_NAME;
     }
 
     @Override

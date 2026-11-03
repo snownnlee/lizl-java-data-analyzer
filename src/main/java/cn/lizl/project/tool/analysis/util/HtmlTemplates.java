@@ -61,11 +61,15 @@ public final class HtmlTemplates {
     }
 
     /**
-     * 文本按 HTML 普通文本转义，防类名/对象值里的 {@code <} 提前闭合标签。
-     * 只转 {@code & < >}、不转引号——<b>仅限元素内容位使用</b>，填属性值（{@code title='...'} 等）
-     * 需另行转义引号。
+     * 动态内容进 HTML 前一律转义：{@code & < > " '} 全转，元素内容位与属性值位（{@code href="..."}、
+     * {@code title='...'}）都可直接用，不必再单独处理引号；{@code null} 按空串处理。
+     *
+     * <p>元素内容位多转出的 {@code &quot;}/{@code &#39;} 由浏览器解析回原字符，渲染结果与被转义前一致。
      */
     public static String escapeHtml(String text) {
+        if (text == null) {
+            return "";
+        }
         StringBuilder result = new StringBuilder(text.length() + 16);
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
@@ -78,6 +82,12 @@ public final class HtmlTemplates {
                     break;
                 case '>':
                     result.append("&gt;");
+                    break;
+                case '"':
+                    result.append("&quot;");
+                    break;
+                case '\'':
+                    result.append("&#39;");
                     break;
                 default:
                     result.append(c);

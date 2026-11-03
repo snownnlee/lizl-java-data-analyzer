@@ -1,6 +1,6 @@
 package cn.lizl.project.tool.analysis.spring.component;
 
-import cn.lizl.project.tool.analysis.spring.beans.JavaDataAnalyzerLifecycleHandler;
+import cn.lizl.project.tool.analysis.spring.beans.SpringBeansAnalysisProvider;
 import cn.lizl.project.tool.analysis.spring.beans.BeansProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 两个线程同时分析不同 bean 时，A 刚加进去的对象会被 B 的 {@code clear} 抹掉，
  * 结果是产物内容与实际 bean 名错配。</p>
  */
-class JavaDataAnalyzerLifecycleHandlerTest {
+class SpringBeansAnalysisProviderTest {
 
     @Test
     @DisplayName("工厂方法每次调用都给出独立实例（handler 只调一次并全程复用）")
@@ -52,7 +52,7 @@ class JavaDataAnalyzerLifecycleHandlerTest {
         properties.setLazy(true);
 
         AtomicInteger created = new AtomicInteger();
-        JavaDataAnalyzerLifecycleHandler handler = new JavaDataAnalyzerLifecycleHandler(() -> {
+        SpringBeansAnalysisProvider handler = new SpringBeansAnalysisProvider(() -> {
             created.incrementAndGet();
             return properties.newRunningConfigurer();
         }, properties);
@@ -91,7 +91,7 @@ class JavaDataAnalyzerLifecycleHandlerTest {
         }
     }
 
-    private void waitUntilRegistered(JavaDataAnalyzerLifecycleHandler handler) throws InterruptedException {
+    private void waitUntilRegistered(SpringBeansAnalysisProvider handler) throws InterruptedException {
         long deadline = System.currentTimeMillis() + 5000;
         while (handler.getBeanNames(false).size() < 2 && System.currentTimeMillis() < deadline) {
             Thread.sleep(20);
