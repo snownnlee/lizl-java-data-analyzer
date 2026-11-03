@@ -225,6 +225,34 @@ function Invoke-Http {
     return $body
 }
 
+<#
+    解析响应体，把「空响应」折成 $null。
+
+    Gitee 的 releases/tags/{tag} 在「标签存在、但还没建 Release」时返回 **200 + 字面量 null**
+    （GitHub 那边是 404，会走 Invoke-Http 的异常分支）。而脚本开了
+    Set-StrictMode -Version Latest：直接对 $null 取属性会抛
+    「在此对象上找不到属性 tag_name」——报错信息与真实原因完全无关，害得人去找字段名。
+#>
+function ConvertFrom-JsonOrNull {
+    param([string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $null }
+    if ($Text.Trim() -eq 'null') { return $null }
+    try { return ($Text | ConvertFrom-Json) } catch { return $null }
+}
+
+<#
+    取属性值；对象为 $null 或没有该属性时返回 $null，不抛异常。
+
+    StrictMode 下「对象存在但缺字段」同样会抛，所以统一用 PSObject.Properties 索引访问。
+#>
+function Get-JsonValue {
+    param($Object, [string]$Name)
+    if ($null -eq $Object) { return $null }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) { return $null }
+    return $property.Value
+}
+
 # ---------------------------------------------------------------- 前置辅助
 
 <#
@@ -438,9 +466,9 @@ try {
             '-H', ('Authorization: Bearer ' + $config.githubToken),
             '-H', 'Accept: application/vnd.github+json'
         ) -Label '校验 GitHub 令牌'
-        $whoObj = $who | ConvertFrom-Json
-        Assert-True (-not [string]::IsNullOrWhiteSpace([string]$whoObj.login)) 'GitHub 令牌校验未返回用户信息' $who
-        Complete-Step ('身份 ' + $whoObj.login)
+        $whoObj = ConvertFrom-JsonOrNull $who
+        Assert-True (-not [string]::IsNullOrWhiteSpace([string](Get-JsonValue $whoObj 'login'))) 'GitHub 令牌校验未返回用户信息' $who
+        Complete-Step ('身份 ' + (Get-JsonValue $whoObj 'login'))
     }
 
     Step '在线校验 Gitee 令牌'
@@ -451,9 +479,9 @@ try {
         $who2 = Invoke-Http `
             -Url ('https://gitee.com/api/v5/user?access_token=' + [uri]::EscapeDataString($config.giteeToken)) `
             -Label '校验 Gitee 令牌'
-        $who2Obj = $who2 | ConvertFrom-Json
-        Assert-True (-not [string]::IsNullOrWhiteSpace([string]$who2Obj.login)) 'Gitee 令牌校验未返回用户信息' $who2
-        Complete-Step ('身份 ' + $who2Obj.login)
+        $who2Obj = ConvertFrom-JsonOrNull $who2
+        Assert-True (-not [string]::IsNullOrWhiteSpace([string](Get-JsonValue $who2Obj 'login'))) 'Gitee 令牌校验未返回用户信息' $who2
+        Complete-Step ('身份 ' + (Get-JsonValue $who2Obj 'login'))
     }
 
     Step '解析两个远端的 owner/repo'
@@ -653,9 +681,10 @@ try {
     catch { }
     $createBody = $null
     $createdNow = $false
-    if ($existingBody -and ($existingBody | ConvertFrom-Json).id) {
+    $existingGithubObj = ConvertFrom-JsonOrNull $existingBody
+    if (Get-JsonValue $existingGithubObj 'id') {
         $createBody = $existingBody
-        Complete-Step ('复用已有 id=' + ($createBody | ConvertFrom-Json).id)
+        Complete-Step ('复用已有 id=' + (Get-JsonValue $existingGithubObj 'id'))
     }
     else {
         $payload = [ordered]@{
@@ -684,8 +713,8 @@ try {
         $createdNow = $true
     }
 
-    $createObj = $createBody | ConvertFrom-Json
-    $githubReleaseId = [string]$createObj.id
+    $createObj = ConvertFrom-JsonOrNull $createBody
+    $githubReleaseId = [string](Get-JsonValue $createObj 'id')
     Assert-True (-not [string]::IsNullOrWhiteSpace($githubReleaseId)) 'GitHub Release 响应中缺少 id' $createBody
     if ($createdNow) {
         $null = $script:RemoteChanges.Add(('GitHub Release {0} 已创建（id={1}）' -f $tag, $githubReleaseId))
@@ -695,7 +724,7 @@ try {
 
     Step ('上传附件 {0}' -f $assetName)
     # 幂等：同名且同大小的附件已存在则跳过
-    $existingAsset = $createObj.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
+    $existingAsset = Get-JsonValue $createObj 'assets' | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
     if ($existingAsset -and [long]$existingAsset.size -eq $jarInfo.Length) {
         Skip-Step ('远端已存在同名附件（{0:N0} 字节）' -f $existingAsset.size)
     }
@@ -714,8 +743,8 @@ try {
             '--data-binary', ('@' + $assetPath)
         ) -Label '上传 GitHub 附件'
 
-        $uploadObj = $uploadBody | ConvertFrom-Json
-        $uploadedSize = [long]$uploadObj.size
+        $uploadObj = ConvertFrom-JsonOrNull $uploadBody
+        $uploadedSize = [long](Get-JsonValue $uploadObj 'size')
         $null = $script:RemoteChanges.Add(('GitHub 附件 {0} 已上传（{1:N0} 字节）' -f $assetName, $uploadedSize))
         Complete-Step ('{0:N0} 字节' -f $uploadedSize)
     }
@@ -726,9 +755,11 @@ try {
     catch { }
     $giteeBody = $null
     $giteeCreatedNow = $false
-    if ($existingGitee -and [string]($existingGitee | ConvertFrom-Json).tag_name -eq $tag) {
+    # 「标签存在但还没有 Release」时 Gitee 返回 200 + null：必须当成「不存在」，去走创建分支
+    $existingGiteeObj = ConvertFrom-JsonOrNull $existingGitee
+    if ((Get-JsonValue $existingGiteeObj 'tag_name') -eq $tag) {
         $giteeBody = $existingGitee
-        Complete-Step ('复用已有 id=' + ($giteeBody | ConvertFrom-Json).id)
+        Complete-Step ('复用已有 id=' + (Get-JsonValue $existingGiteeObj 'id'))
     }
     else {
         # 提交信息可能多行，经临时文件传给 --data-urlencode，避免命令行转义问题
@@ -750,10 +781,10 @@ try {
         $giteeCreatedNow = $true
     }
 
-    $giteeObj = $giteeBody | ConvertFrom-Json
-    Assert-True ([string]$giteeObj.tag_name -eq $tag) `
+    $giteeObj = ConvertFrom-JsonOrNull $giteeBody
+    Assert-True ((Get-JsonValue $giteeObj 'tag_name') -eq $tag) `
         ('Gitee Release 返回的 tag_name 不是 {0}' -f $tag) $giteeBody
-    $giteeReleaseId = [string]$giteeObj.id
+    $giteeReleaseId = [string](Get-JsonValue $giteeObj 'id')
     if ($giteeCreatedNow) {
         $null = $script:RemoteChanges.Add(('Gitee Release {0} 已创建（id={1}）' -f $tag, $giteeReleaseId))
         $null = $script:RollbackHints.Add(('curl.exe --ssl-no-revoke -X DELETE "https://gitee.com/api/v5/repos/{0}/{1}/releases/{2}?access_token=<giteeToken>"' -f $giteeSlug.Owner, $giteeSlug.Repo, $giteeReleaseId))
@@ -763,9 +794,10 @@ try {
     Step ('上传 Gitee 附件 {0}' -f $assetName)
     # 幂等：Release 详情里已带同名附件则跳过（Gitee assets 可能不返回，视为需上传）
     $giteeAsset = $null
-    if ($giteeObj.assets) {
+    $giteeAssets = Get-JsonValue $giteeObj 'assets'
+    if ($giteeAssets) {
         # Gitee assets 元素只有 name / browser_download_url，没有 path 等字段，只按 name 判断
-        $giteeAsset = $giteeObj.assets | Where-Object { [string]$_.name -eq $assetName } | Select-Object -First 1
+        $giteeAsset = $giteeAssets | Where-Object { [string]$_.name -eq $assetName } | Select-Object -First 1
     }
     if ($giteeAsset) {
         Skip-Step '远端已存在同名附件'
@@ -798,8 +830,8 @@ try {
         ) `
         -Label '回查 GitHub Release'
 
-    $checkObj = $checkBody | ConvertFrom-Json
-    $remoteAsset = $checkObj.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
+    $checkObj = ConvertFrom-JsonOrNull $checkBody
+    $remoteAsset = Get-JsonValue $checkObj 'assets' | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
     Assert-True ($null -ne $remoteAsset) ('GitHub Release 上找不到附件 {0}' -f $assetName) $checkBody
     Assert-True ([long]$remoteAsset.size -eq $jarInfo.Length) `
         ('附件大小不一致：远端 {0} / 本地 {1}' -f $remoteAsset.size, $jarInfo.Length)
@@ -810,8 +842,8 @@ try {
         -Url ('https://gitee.com/api/v5/repos/{0}/{1}/releases/tags/{2}' -f $giteeSlug.Owner, $giteeSlug.Repo, $tag) `
         -Label '回查 Gitee Release'
 
-    $giteeCheckObj = $giteeCheck | ConvertFrom-Json
-    Assert-True ([string]$giteeCheckObj.tag_name -eq $tag) 'Gitee Release 回查到的 tag 不匹配' $giteeCheck
+    $giteeCheckObj = ConvertFrom-JsonOrNull $giteeCheck
+    Assert-True ((Get-JsonValue $giteeCheckObj 'tag_name') -eq $tag) 'Gitee Release 回查到的 tag 不匹配' $giteeCheck
     Complete-Step $tag
 
     Step '输出汇总'
