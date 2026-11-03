@@ -53,7 +53,7 @@ class PumlHtmlRender extends BaseRender {
     }
 
     /**
-     * PUML 文本 → JS 字符串数组字面量。{@code <} 必须转 {@code <}（求值后仍是 <，值不变）：
+     * PUML 文本 → JS 字符串数组字面量。{@code <} 必须转 {@code \u003c}（求值后仍是 <，值不变）：
      * 用 {@code <\/} 会改变值（{@code \/} 求值后是 {@code /}），且 {@code </} 会提前闭合 script。
      */
     private static String toJsStringArray(String puml) {

@@ -171,6 +171,9 @@ abstract class BaseRunningConfigurer extends RunningConfigCapable implements Run
     }
 
     private IRender createRender(RenderType renderType) {
+        if (renderType == RenderType.HTML2) {
+            return new HtmlRender2(runningConfig);
+        }
         if (renderType == RenderType.PUML) {
             return new PumlRender(runningConfig);
         }

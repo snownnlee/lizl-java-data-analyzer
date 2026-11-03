@@ -1,6 +1,6 @@
 package cn.lizl.project.tool.analysis.core;
 
-import cn.lizl.project.tool.analysis.util.ResourcePaths;
+import cn.lizl.project.tool.analysis.util.HtmlTreeAssets;
 import cn.lizl.project.tool.analysis.JavaDataAnalyzer;
 import cn.lizl.project.tool.analysis.api.AnalysisMode;
 import cn.lizl.project.tool.analysis.api.OutputContentReceiver;
@@ -52,26 +52,11 @@ class HtmlRenderMarkupTest {
         assertTrue(html.contains("changeDisplayForClassDiv(this, event)"),
                 "按钮 onclick 未把 event 传给处理函数，无法阻止冒泡");
 
-        String template = readTemplate();
-        String handler = template.substring(template.indexOf("function changeDisplayForClassDiv"));
+        String script = HtmlTreeAssets.text(HtmlTreeAssets.INTERACTION);
+        String handler = script.substring(script.indexOf("function changeDisplayForClassDiv"));
         String body = handler.substring(0, handler.indexOf("function ", 10));
         assertTrue(body.contains("stopPropagation()"),
                 "changeDisplayForClassDiv 未调用 stopPropagation，点收起会被标题导航立刻展开");
-    }
-
-    private static String readTemplate() {
-        try (java.io.InputStream in = HtmlRenderMarkupTest.class.getClassLoader()
-                .getResourceAsStream(ResourcePaths.html("JavaDataAnalyzer.html"))) {
-            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
-            byte[] chunk = new byte[8192];
-            int read;
-            while ((read = in.read(chunk)) >= 0) {
-                buffer.write(chunk, 0, read);
-            }
-            return new String(buffer.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
-        } catch (java.io.IOException e) {
-            throw new IllegalStateException("模板读取失败", e);
-        }
     }
 
     private static String renderSample() {

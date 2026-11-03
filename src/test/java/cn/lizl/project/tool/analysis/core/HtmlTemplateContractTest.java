@@ -1,5 +1,6 @@
 package cn.lizl.project.tool.analysis.core;
 
+import cn.lizl.project.tool.analysis.util.HtmlTreeAssets;
 import cn.lizl.project.tool.analysis.util.ResourcePaths;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -21,17 +22,19 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 渲染端（{@link HtmlRender}）与模板 {@code JavaDataAnalyzer.html} 之间的契约校验。
+ * 渲染端（{@link HtmlRender}）与模板资源（{@code JavaDataAnalyzer.html} +
+ * {@link HtmlTreeAssets#STYLE} + {@link HtmlTreeAssets#INTERACTION}）之间的契约校验。
  *
- * <p>背景：类名的定义天然分居两处——Java 产出标签与类名，CSS/JS 在模板里按类名取样式与行为。
+ * <p>背景：类名的定义天然分居两处——Java 产出标签与类名，CSS/JS 按类名取样式与行为。
  * 任一侧改名而另一侧没跟上都不会报错，页面只静默变成无样式或按钮失灵，而现有渲染用例
- * 只断言「内容非空 / 含某些值」，抓不到这类漂移。本用例把两处的对应关系变成断言：</p>
+ * 只断言「内容非空 / 含某些值」，抓不到这类漂移。样式与脚本拆成独立资源后，还多了一层
+ * 「模板占位符是否还在」的风险。本用例把这些对应关系变成断言：</p>
  *
  * <ol>
- *   <li>常量 → CSS：{@link HtmlRender.Tokens} 里每个类名都必须在模板 {@code <style>} 中有定义，
- *       否则产物无样式；</li>
- *   <li>CSS → 常量：模板里凡以渲染端前缀命名的类，必须在常量里有声明，否则是拼错或死样式；</li>
- *   <li>JS 不依赖类名：{@code <script>} 段不得出现任何渲染端类名，交互只准读 data-* 属性；</li>
+ *   <li>模板 → 资源：模板里必须仍有 {@code ${style}} / {@code ${script}} 占位符，否则拆出的资源不会被注入；</li>
+ *   <li>常量 → CSS：{@link HtmlRender.Tokens} 里每个类名都必须在样式资源中有定义，否则产物无样式；</li>
+ *   <li>CSS → 常量：样式资源里凡以渲染端前缀命名的类，必须在常量里有声明，否则是拼错或死样式；</li>
+ *   <li>JS 不依赖类名：脚本资源不得出现任何渲染端类名，交互只准读 data-* 属性；</li>
  *   <li>JS 依赖的属性与 {@code data-name} 取值，必须在常量表里有对应项。</li>
  * </ol>
  */
@@ -48,8 +51,15 @@ class HtmlTemplateContractTest {
     @BeforeAll
     static void loadTemplate() throws IOException {
         String template = readTemplate();
-        styleSection = requireSection(template, "<style>", "</style>");
-        scriptSection = requireSection(template, "<script>", "</script>");
+        // CSS/JS 以同目录 sidecar 形式分发，由 HtmlRender 按占位符填文件名：占位符拼错不会报错，
+        // 只是页面静默无样式/按钮失灵
+        assertTrue(template.contains("<link rel=\"stylesheet\" href=\"./${styleFile}\">"),
+                "模板缺少样式资源引用，产物会没有样式");
+        assertTrue(template.contains("<script src=\"./${scriptFile}\"></script>"),
+                "模板缺少脚本资源引用，交互会全部失效");
+        // 走生产同一套加载/压缩入口，断言的就是真正会落盘的那份文本
+        styleSection = HtmlTreeAssets.text(HtmlTreeAssets.STYLE);
+        scriptSection = HtmlTreeAssets.text(HtmlTreeAssets.INTERACTION);
     }
 
     @Test
@@ -216,10 +226,4 @@ class HtmlTemplateContractTest {
         }
     }
 
-    private static String requireSection(String template, String open, String close) {
-        int start = template.indexOf(open);
-        int end = template.indexOf(close, start + open.length());
-        assertTrue(start >= 0 && end > start, "模板中缺少片段：" + open + " … " + close);
-        return template.substring(start + open.length(), end);
-    }
 }

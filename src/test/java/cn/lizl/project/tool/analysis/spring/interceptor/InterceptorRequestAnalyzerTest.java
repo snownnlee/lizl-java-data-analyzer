@@ -48,10 +48,10 @@ class InterceptorRequestAnalyzerTest {
             analyzer.analyze("SampleController#handle", "/sample/handle", args);
 
             // 等「有内容」而不是「文件出现」：写盘器先建文件再写内容，只看存在会读到 0 字节
-            InterceptorControlTest.awaitOrFail(() -> listFiles().length >= 1 && listFiles()[0].length() > 0,
+            InterceptorControlTest.awaitOrFail(() -> listProducts().length >= 1 && listProducts()[0].length() > 0,
                     "应有产物落盘");
-            File[] files = listFiles();
-            assertEquals(1, files.length);
+            File[] files = listProducts();
+            assertEquals(1, files.length, "只应有一个产物文件（同目录的样式/脚本 sidecar 不计）");
             assertTrue(files[0].getName().endsWith(".html"), "默认应产出 html：" + files[0].getName());
             assertTrue(files[0].length() > 0, "产物文件为空");
             assertTrue(files[0].getName().contains("_sample_handle"), "文件名应含 URI 摘要");
@@ -76,11 +76,11 @@ class InterceptorRequestAnalyzerTest {
             analyzer.analyze("SampleController#handle", "/sample/own", args);
 
             // 等「有内容」而不是「文件出现」：写盘器先建文件再写内容，只看存在会读到 0 字节
-            InterceptorControlTest.awaitOrFail(() -> listFiles().length >= 1 && listFiles()[0].length() > 0,
+            InterceptorControlTest.awaitOrFail(() -> listProducts().length >= 1 && listProducts()[0].length() > 0,
                     "应有产物落盘");
-            assertTrue(listFiles()[0].getName().endsWith(".puml"),
-                    "本通道 render-type=PUML 应产出 puml：" + listFiles()[0].getName());
-            assertEquals(outputRootDir.toString(), listFiles()[0].getParentFile().getParent(),
+            assertTrue(listProducts()[0].getName().endsWith(".puml"),
+                    "本通道 render-type=PUML 应产出 puml：" + listProducts()[0].getName());
+            assertEquals(outputRootDir.toString(), listProducts()[0].getParentFile().getParent(),
                     "产物应落在本通道自己的 output-root-dir 下");
         } finally {
             control.shutdown();
@@ -111,7 +111,7 @@ class InterceptorRequestAnalyzerTest {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            assertEquals(0, listFiles().length, "全框架入参不应产出文件");
+            assertEquals(0, listProducts().length, "全框架入参不应产出文件");
         } finally {
             control.shutdown();
         }
@@ -201,6 +201,21 @@ class InterceptorRequestAnalyzerTest {
         properties.setRenderType(RenderType.HTML);
         properties.setOutputRootDir(outputRootDir.toString());
         return properties;
+    }
+
+    /**
+     * 只收集产物文件。
+     *
+     * <p>同目录还会有样式/脚本 sidecar（{@code .css}/{@code .js}），它们是产物的附属资源，
+     * 不是「本次分析产出了什么」的答案，数进来会让「应只有一个产物」的断言忽真忽假。
+     */
+    private File[] listProducts() {
+        return Arrays.stream(listFiles())
+                .filter(file -> {
+                    String name = file.getName().toLowerCase();
+                    return name.endsWith(".html") || name.endsWith(".puml") || name.endsWith(".mmd");
+                })
+                .toArray(File[]::new);
     }
 
     /** 产物在根目录的日期子目录下，递归收集 */

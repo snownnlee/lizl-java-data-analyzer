@@ -9,6 +9,7 @@ import org.springframework.beans.factory.BeanFactoryAware;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.beans.factory.config.SingletonBeanRegistry;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.EnvironmentAware;
@@ -18,8 +19,11 @@ import org.springframework.lang.Nullable;
 import javax.annotation.Nonnull;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
@@ -152,7 +156,46 @@ public class SpringBeansAnalysisProvider
         }
         beanToBeanNameMap.clear();
 
+        registerMissedSingletons();
+
         singletonsInstantiated = true;
+    }
+
+    /**
+     * 补采「早于采集器创建」的单例。
+     *
+     * <p>采集靠 {@link BeanPostProcessor} 回调，而它自己连同构造依赖（{@code BeansProperties}）都是在
+     * {@code registerBeanPostProcessors()} 阶段建好的——那时本处理器还没注册进容器，Spring 会明确提示
+     * 这些 Bean「not eligible for getting processed by all BeanPostProcessors」，于是它们永远进不了列表。
+     *
+     * <p>单例就绪后扫一遍容器里已经实例化的单例，按真实 Bean 名补上。用
+     * {@link SingletonBeanRegistry#getSingleton} 只读已注册实例，不会反过来触发创建；已经在
+     * {@code @environment} 之类合成名下登记过的实例按引用跳过，避免同一对象在列表里出现两次。
+     *
+     * <p>代价是列表里会多出 Spring 自身的基础设施单例（{@code systemProperties}、
+     * {@code messageSource} 等）：这是「宁可多、不可漏」的取舍，噪音可以用
+     * {@code ignore-bean-names} / {@code ignore-bean-packages} 过滤。
+     */
+    private void registerMissedSingletons() {
+        if (!(beanFactory instanceof SingletonBeanRegistry)) {
+            return;
+        }
+        SingletonBeanRegistry singletonRegistry = (SingletonBeanRegistry) beanFactory;
+        Set<Object> registeredBeans = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (AnalysisFactory analysisFactory : beanNameToAnalysisFactoryMap.values()) {
+            registeredBeans.add(analysisFactory.bean);
+        }
+        for (String beanName : singletonRegistry.getSingletonNames()) {
+            // "&" 开头是 FactoryBean 本体，不是容器对外暴露的那个 Bean
+            if (beanName.startsWith("&")) {
+                continue;
+            }
+            Object bean = singletonRegistry.getSingleton(beanName);
+            if (bean == null || registeredBeans.contains(bean) || properties.shouldIgnore(bean, beanName)) {
+                continue;
+            }
+            registerAndAnalyze(bean, beanName, false);
+        }
     }
 
     /**

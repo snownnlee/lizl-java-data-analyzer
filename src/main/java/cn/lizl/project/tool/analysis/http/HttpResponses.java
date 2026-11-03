@@ -92,17 +92,24 @@ public final class HttpResponses {
     }
 
     /**
-     * 前端引擎（产物同目录 sidecar 的 js）。文件名自带版本、内容永不变，所以给一年强缓存：
-     * 同一台机器上的多个产物共用一份，浏览器只真正下载一次。
+     * 产物同目录的 sidecar 资源（前端引擎、交互式 HTML 的样式/脚本）。
+     *
+     * <p>文件名自带版本或内容指纹、内容永不变，所以给一年强缓存：同一台机器上的多个产物共用一份，
+     * 浏览器只真正下载一次。
      */
-    public static void javascript(HttpExchange exchange, byte[] content) throws IOException {
-        exchange.getResponseHeaders().set("Content-Type", "application/javascript; charset=UTF-8");
+    public static void immutableAsset(HttpExchange exchange, String contentType, byte[] content) throws IOException {
+        exchange.getResponseHeaders().set("Content-Type", contentType);
         exchange.getResponseHeaders().set("Cache-Control", "public, max-age=31536000, immutable");
         exchange.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
         exchange.sendResponseHeaders(200, content.length);
         try (OutputStream outputStream = exchange.getResponseBody()) {
             outputStream.write(content);
         }
+    }
+
+    /** 前端引擎（产物同目录 sidecar 的 js） */
+    public static void javascript(HttpExchange exchange, byte[] content) throws IOException {
+        immutableAsset(exchange, "application/javascript; charset=UTF-8", content);
     }
 
     public static String contentTypeOf(String fileName) {

@@ -21,6 +21,16 @@ class TemplateCompressorTest {
 
     private static final String TEMPLATE_NAME = ResourcePaths.html("JavaDataAnalyzer.html");
 
+    /** HTML2 模板：骨架与 HTML1 一致，占位符不同（正文换成数据块 + 建树脚本） */
+    private static final String TEMPLATE2_NAME = ResourcePaths.html("JavaDataAnalyzer2.html");
+
+    private static final String[] TEMPLATE_NAMES = {TEMPLATE_NAME, TEMPLATE2_NAME};
+
+    /** 样式与脚本已从模板拆出，压缩的大头其实在这里（名字与 HtmlRender 的常量保持一致） */
+    private static final String STYLE_NAME = ResourcePaths.html("tree-style.css");
+
+    private static final String SCRIPT_NAME = ResourcePaths.html("tree-interaction.js");
+
     private static final String[] JS_FUNCTIONS = {
             "changeDisplayForClassDiv", "collapseAll", "collapseClassDiv",
             "createParticles", "describeNavTarget", "expandAll", "expandClassDiv", "highlightAndMoveTo",
@@ -29,8 +39,12 @@ class TemplateCompressorTest {
     };
 
     private static String readTemplate() throws Exception {
-        InputStream in = TemplateCompressorTest.class.getClassLoader().getResourceAsStream(TEMPLATE_NAME);
-        assertNotNull(in, "模板资源缺失：" + TEMPLATE_NAME);
+        return readResource(TEMPLATE_NAME);
+    }
+
+    private static String readResource(String classpathName) throws Exception {
+        InputStream in = TemplateCompressorTest.class.getClassLoader().getResourceAsStream(classpathName);
+        assertNotNull(in, "资源缺失：" + classpathName);
         java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
         byte[] chunk = new byte[4096];
         int read;
@@ -94,26 +108,35 @@ class TemplateCompressorTest {
     }
 
     @Test
-    @DisplayName("模板压缩后体积明显下降")
+    @DisplayName("骨架 + 样式 + 脚本压缩后合计体积明显下降")
     void compactReducesSize() throws Exception {
-        String original = readTemplate();
-        String compacted = TemplateCompressor.compact(original);
+        String template = readTemplate();
+        String style = readResource(STYLE_NAME);
+        String script = readResource(SCRIPT_NAME);
 
-        int before = original.getBytes(StandardCharsets.UTF_8).length;
-        int after = compacted.getBytes(StandardCharsets.UTF_8).length;
-        System.out.println("[模板压缩] " + before + " B -> " + after + " B（-"
+        int before = sizeOf(template) + sizeOf(style) + sizeOf(script);
+        int after = sizeOf(TemplateCompressor.compact(template))
+                + sizeOf(TemplateCompressor.compactCss(style))
+                + sizeOf(TemplateCompressor.compactJs(script));
+        System.out.println("[模板资源压缩] " + before + " B -> " + after + " B（-"
                 + String.format("%.1f", (1 - (double) after / before) * 100) + "%）");
 
         assertTrue(after < before * 0.8, "压缩后体积未明显下降：" + after + " / " + before);
     }
 
+    private static int sizeOf(String content) {
+        return content.getBytes(StandardCharsets.UTF_8).length;
+    }
+
     @Test
     @DisplayName("压缩前后除空白与注释外完全等价")
     void compactKeepsSemantics() throws Exception {
-        String original = readTemplate();
-        String compacted = TemplateCompressor.compact(original);
+        for (String templateName : TEMPLATE_NAMES) {
+            String original = readResource(templateName);
+            String compacted = TemplateCompressor.compact(original);
 
-        assertEquals(normalize(original), normalize(compacted), "压缩改动的不只是空白/注释");
+            assertEquals(normalize(original), normalize(compacted), templateName + " 压缩改动的不只是空白/注释");
+        }
     }
 
     @Test
@@ -145,17 +168,24 @@ class TemplateCompressorTest {
     }
 
     @Test
-    @DisplayName("占位符与对外暴露的 JS 函数名保持完整")
+    @DisplayName("占位符与对外暴露的 JS 函数名、CSS 类名保持完整")
     void compactKeepsPlaceholdersAndFunctions() throws Exception {
-        String compacted = TemplateCompressor.compact(readTemplate());
+        String compactedTemplate = TemplateCompressor.compact(readTemplate());
 
-        assertEquals(1, countOf(compacted, "${title}"), "${title} 占位符数量异常");
-        assertEquals(1, countOf(compacted, "${content}"), "${content} 占位符数量异常");
+        // 四个占位符缺一个就是产物里少一整块（标题/样式引用/脚本引用/正文），且不会有任何报错
+        assertEquals(1, countOf(compactedTemplate, "${title}"), "${title} 占位符数量异常");
+        assertEquals(1, countOf(compactedTemplate, "${styleFile}"), "${styleFile} 占位符数量异常");
+        assertEquals(1, countOf(compactedTemplate, "${scriptFile}"), "${scriptFile} 占位符数量异常");
+        assertEquals(1, countOf(compactedTemplate, "${content}"), "${content} 占位符数量异常");
+
+        String compactedScript = TemplateCompressor.compactJs(readResource(SCRIPT_NAME));
         for (String function : JS_FUNCTIONS) {
-            assertTrue(compacted.contains("function " + function), "JS 函数丢失：" + function);
+            assertTrue(compactedScript.contains("function " + function), "JS 函数丢失：" + function);
         }
-        assertTrue(compacted.contains("\"Microsoft YaHei UI\""), "字体名（含空格的字符串）被破坏");
-        assertTrue(compacted.contains("class_model_title_control_button"), "CSS 类名被破坏");
+
+        String compactedStyle = TemplateCompressor.compactCss(readResource(STYLE_NAME));
+        assertTrue(compactedStyle.contains("\"Microsoft YaHei UI\""), "字体名（含空格的字符串）被破坏");
+        assertTrue(compactedStyle.contains("class_model_title_control_button"), "CSS 类名被破坏");
     }
 
     @Test
@@ -171,23 +201,29 @@ class TemplateCompressorTest {
     @Test
     @DisplayName("HTML 骨架行首空白被去掉，且不残留 CR")
     void compactStripsLineIndent() throws Exception {
-        String compacted = TemplateCompressor.compact(readTemplate());
+        for (String templateName : TEMPLATE_NAMES) {
+            String compacted = TemplateCompressor.compact(readResource(templateName));
 
-        assertFalse(compacted.contains("\r"), "CRLF 未归一为 LF");
-        String skeleton = compacted
-                .replaceAll("(?s)<style>.*?</style>", "<style/>")
-                .replaceAll("(?s)<script>.*?</script>", "<script/>");
-        for (String line : skeleton.split("\n", -1)) {
-            assertFalse(line.startsWith(" ") || line.startsWith("\t"), "行首仍有空白：" + line);
+            assertFalse(compacted.contains("\r"), templateName + " 的 CRLF 未归一为 LF");
+            String skeleton = compacted
+                    .replaceAll("(?s)<style>.*?</style>", "<style/>")
+                    .replaceAll("(?s)<script.*?</script>", "<script/>");
+            for (String line : skeleton.split("\n", -1)) {
+                assertFalse(line.startsWith(" ") || line.startsWith("\t"),
+                        templateName + " 行首仍有空白：" + line);
+            }
         }
     }
 
     @Test
     @DisplayName("模板不得引入 <pre>/<textarea>（行首空白压缩的前提）")
     void templateHasNoWhiteSpaceSensitiveTags() throws Exception {
-        String lower = readTemplate().toLowerCase();
-        assertFalse(lower.contains("<pre"), "模板新增了 <pre>，行首空白压缩需重新评估");
-        assertFalse(lower.contains("<textarea"), "模板新增了 <textarea>，行首空白压缩需重新评估");
+        for (String templateName : TEMPLATE_NAMES) {
+            String lower = readResource(templateName).toLowerCase();
+            assertFalse(lower.contains("<pre"), templateName + " 新增了 <pre>，行首空白压缩需重新评估");
+            assertFalse(lower.contains("<textarea"),
+                    templateName + " 新增了 <textarea>，行首空白压缩需重新评估");
+        }
     }
 
     private static int countOf(String source, String token) {

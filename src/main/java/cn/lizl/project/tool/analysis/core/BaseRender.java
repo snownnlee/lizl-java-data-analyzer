@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import cn.lizl.project.tool.analysis.util.FrontendAssets;
+import cn.lizl.project.tool.analysis.util.HtmlTreeAssets;
 
 import static cn.lizl.project.tool.analysis.util.CommonUtil.isUnsafeFileNameSegment;
 import static cn.lizl.project.tool.analysis.util.CommonUtil.sanitizeFileName;
@@ -68,6 +69,8 @@ abstract class BaseRender extends RunningConfigCapable implements IRender {
         // 引用了前端引擎的产物（PUML_HTML / MERMAID_HTML）在同目录补一份 js：
         // 双击 file:// 打开、断网都能渲染，且同目录多个产物共用一份，不重复落盘。
         FrontendAssets.ensureReferenced(content, outputFile.getParentFile());
+        // 交互式 HTML（HTML / HTML2）的样式与脚本同样是同目录 sidecar，文件名带内容指纹
+        HtmlTreeAssets.ensureReferenced(content, outputFile.getParentFile());
         return outputFile;
     }
 }

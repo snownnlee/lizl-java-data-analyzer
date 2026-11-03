@@ -2,6 +2,7 @@ package cn.lizl.project.tool.analysis.spring.interceptor;
 
 import cn.lizl.project.tool.analysis.util.CommonUtil;
 import cn.lizl.project.tool.analysis.util.FrontendAssets;
+import cn.lizl.project.tool.analysis.util.HtmlTreeAssets;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -216,6 +217,8 @@ final class InterceptorOutputWriter {
             CommonUtil.writeUtf8String(entry.content, outputFile);
             // 产物页相对引用同目录引擎：首次写该目录时补一份，之后复用
             FrontendAssets.ensureReferenced(entry.content, outputFile.getParentFile());
+            // 交互式 HTML 的样式/脚本同样在同目录，文件名带内容指纹
+            HtmlTreeAssets.ensureReferenced(entry.content, outputFile.getParentFile());
             written.incrementAndGet();
             recordOutput(entry.fileName, outputFile);
             log.info("请求分析产物已落盘：" + entry.summary + " => " + entry.fileName);

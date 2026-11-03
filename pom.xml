@@ -7,7 +7,7 @@
 
     <groupId>io.gitee.snownnlee</groupId>
     <artifactId>lizl-java-data-analyzer</artifactId>
-    <version>2.0.0</version>
+    <version>2.1.0</version>
 
     <name>lizl-java-data-analyzer</name>
     <description>Java Class/Object Data Analyzer</description>

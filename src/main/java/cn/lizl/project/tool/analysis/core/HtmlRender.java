@@ -3,6 +3,7 @@ package cn.lizl.project.tool.analysis.core;
 import cn.lizl.project.tool.analysis.JavaDataAnalyzer;
 import cn.lizl.project.tool.analysis.util.CommonUtil;
 import cn.lizl.project.tool.analysis.util.HtmlTemplates;
+import cn.lizl.project.tool.analysis.util.HtmlTreeAssets;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Modifier;
@@ -11,18 +12,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.regex.Pattern;
 
 class HtmlRender extends BaseRender {
-
-    /** 类声明头拆分：渲染热路径每类一次，预编译避免 String.split 每次重编译 */
-    private static final Pattern CLASS_HEADER_SPLIT = Pattern.compile("(?<=(class|enum|interface|record))\\s+");
 
     private static final String FILE_EXTENSION = ".html";
 
     private static final String OUTPUT_TEMPLATE_NAME = JavaDataAnalyzer.class.getSimpleName() + FILE_EXTENSION;
 
-    private static final String[] PLACEHOLDERS = {"${title}", "${content}"};
+    /** 样式与交互脚本以 sidecar 形式放产物同目录，两套 HTML 渲染器共用同一份（见 {@link HtmlTreeAssets}） */
+    private static final String[] PLACEHOLDERS = {"${title}", "${styleFile}", "${scriptFile}", "${content}"};
 
     HtmlRender(RunningConfig runningConfig) {
         super(runningConfig, FILE_EXTENSION);
@@ -36,10 +34,18 @@ class HtmlRender extends BaseRender {
         }
         return HtmlTemplates.fill(HtmlTemplates.load(OUTPUT_TEMPLATE_NAME),
                 PLACEHOLDERS,
-                new String[]{buildTitle(classModels), content.toString()});
+                new String[]{buildReportTitle(classModels),
+                        HtmlTreeAssets.servedName(HtmlTreeAssets.STYLE),
+                        HtmlTreeAssets.servedName(HtmlTreeAssets.INTERACTION),
+                        content.toString()});
     }
 
-    private String buildTitle(ClassModel[] classModels) {
+    /**
+     * 产物 &lt;title&gt; 文本：{@code 【A、B】}，两个 HTML 渲染器共用。
+     *
+     * <p>这是 HTML 文本节点，转义留在这里做；{@link HtmlRender2} 的 JSON 里不出现标题，不受影响。
+     */
+    static String buildReportTitle(ClassModel[] classModels) {
         return escapeContent(Stream.of(classModels)
                 .map(ClassModel::getClassSimpleName)
                 .collect(Collectors.joining("、", "【", "】")));
@@ -108,50 +114,15 @@ class HtmlRender extends BaseRender {
     }
 
     /**
-     * 拼出类标题的四个展示片段：修饰符标签、显示名、实例标记、锚点 id。
+     * 类标题的四个展示片段，取 {@link ClassTitle} 的共用口径，再补上本通道特有的转义。
      *
-     * <p>前置条件：{@code classModel.sourceClass} 非空。链接类与 info 类构造时传 {@code null}，本方法
-     * 依赖「链接类指向的 origin 必为真实模型」这一不变量，不再重复判空。
+     * <p>这里是服务端拼标签，显示名必须转义；{@code ClassTitle} 之所以不转义，是为了让输出 JSON
+     * 的通道能把原字符交给前端 {@code textContent}，避免双重转义。转义职责留在调用方，两边口径才不会漂移。
      */
-    private String[] buildClassModelDisplayName(ClassModel classModel) {
-        String classModifierType = null;
-        String classDisplayName;
-        String classInstanceFlag = classModel.sourceClassInstance != null ? "*" : null;
-        String classDisplayId = "#" + classModel.id + "#";
-
-        String classGenericName = ItemTypeNames.of(classModel.sourceClass);
-        if (classGenericName == null) {
-            classGenericName = classModel.sourceClass.toGenericString();
-        }
-
-        String[] contents = CLASS_HEADER_SPLIT.split(classGenericName, 2);
-        if (contents.length == 1) {
-            classDisplayName = escapeContent(contents[0]);
-        } else {
-            classModifierType = fixClassModifierType(contents[0], classModel.sourceClass.isAnnotation());
-            classDisplayName = escapeContent(contents[1]);
-        }
-
-        return new String[]{classModifierType, classDisplayName, classInstanceFlag, classDisplayId};
-    }
-
-    private String fixClassModifierType(String value, boolean isAnnotation) {
-        if (value.endsWith("enum")) {
-            return "enum";
-        }
-        if (value.endsWith("record")) {
-            return "record";
-        }
-        if (value.endsWith("interface")) {
-            return isAnnotation ? "@interface" : "interface";
-        }
-        if (value.endsWith("class")) {
-            if (value.contains("abstract")) {
-                return "abstract";
-            }
-            return null;
-        }
-        return value;
+    private static String[] buildClassModelDisplayName(ClassModel classModel) {
+        String[] classGenericName = ClassTitle.of(classModel);
+        classGenericName[1] = escapeContent(classGenericName[1]);
+        return classGenericName;
     }
 
     private void renderFieldModel(FieldModel fieldModel, StringBuilder result) {

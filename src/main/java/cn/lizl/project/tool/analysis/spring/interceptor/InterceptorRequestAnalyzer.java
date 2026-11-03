@@ -141,6 +141,7 @@ final class InterceptorRequestAnalyzer {
             case MERMAID_HTML:
                 extension = ".mmd.html";
                 break;
+            // HTML 与 HTML2 的产物都是 .html：区别在页面内部是完整 DOM 还是 JSON 骨架，扩展名不区分
             default:
                 extension = ".html";
                 break;

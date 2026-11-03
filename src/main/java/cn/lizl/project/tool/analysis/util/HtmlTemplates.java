@@ -22,11 +22,15 @@ public final class HtmlTemplates {
     }
 
     private static String readAndCompact(String fileName) {
+        return TemplateCompressor.compact(readRaw(fileName));
+    }
+
+    private static String readRaw(String fileName) {
         InputStream stream = HtmlTemplates.class.getClassLoader().getResourceAsStream(ResourcePaths.html(fileName));
         if (stream == null) {
-            throw new IllegalStateException("错误：模板资源读取为空！！！");
+            throw new IllegalStateException("错误：模板资源读取为空！！！" + fileName);
         }
-        return TemplateCompressor.compact(CommonUtil.read(stream, StandardCharsets.UTF_8, true));
+        return CommonUtil.read(stream, StandardCharsets.UTF_8, true);
     }
 
     /**

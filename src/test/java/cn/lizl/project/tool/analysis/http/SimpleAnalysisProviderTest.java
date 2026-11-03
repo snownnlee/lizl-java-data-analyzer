@@ -91,9 +91,10 @@ class SimpleAnalysisProviderTest {
 
         assertNotNull(second);
         assertEquals(first.getName(), second.getName());
-        File[] files = tempDir.toFile().listFiles();
-        assertNotNull(files);
-        assertEquals(1, files.length);
+        // 产物同目录还会有样式/脚本 sidecar（.css/.js），这里只数产物本身
+        File[] products = tempDir.toFile().listFiles((dir, name) -> name.toLowerCase().endsWith(".html"));
+        assertNotNull(products);
+        assertEquals(1, products.length, "同名重复登记应复用同一个产物文件");
     }
 
     @Test

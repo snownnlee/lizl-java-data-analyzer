@@ -3,9 +3,17 @@ package cn.lizl.project.tool.analysis.api;
 public enum RenderType {
 
     /**
-     * 可折叠的交互式 HTML 树。
+     * 可折叠的交互式 HTML 树，完整 DOM 由服务端拼好写进产物。
      */
     HTML,
+
+    /**
+     * 同一套交互式 HTML 树的「数据骨架」形态：产物里只有 JSON 数据，DOM 由浏览器端脚本构建。
+     *
+     * <p>产物扩展名与 {@link #HTML} 相同（{@code .html}），页面结构与交互完全一致，区别只在体积——
+     * 标签不再重复落盘，大对象的产物通常能小一大截。
+     */
+    HTML2,
 
     /**
      * PlantUML 文本，需外部渲染器才能查看。

@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -64,6 +65,57 @@ class RegistrationCompletenessTest {
     @Test
     @DisplayName("上下文刷新完成后，列表已经是完整的")
     void shouldBeCompleteRightAfterRefresh(@TempDir Path tempDir) {
+        AnnotationConfigApplicationContext context = newContext(tempDir);
+        try {
+            SpringBeansAnalysisProvider handler = context.getBean(SpringBeansAnalysisProvider.class);
+
+            // 不 sleep、不轮询：refresh 返回时就该是全量
+            List<String> beanNames = handler.getBeanNames(false);
+            assertTrue(beanNames.contains("sampleAlpha"), "刷新后列表缺少 sampleAlpha，实际：" + beanNames);
+            assertTrue(beanNames.contains("sampleBeta"), "刷新后列表缺少 sampleBeta，实际：" + beanNames);
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    @DisplayName("早于采集器创建的单例也要补采：BeansProperties / 自动配置类不能缺席")
+    void shouldCollectSingletonsCreatedBeforeCollector(@TempDir Path tempDir) {
+        AnnotationConfigApplicationContext context = newContext(tempDir);
+        try {
+            SpringBeansAnalysisProvider handler = context.getBean(SpringBeansAnalysisProvider.class);
+            List<String> beanNames = handler.getBeanNames(false);
+
+            // 这两类 Bean 是采集器自己的构造依赖，在 BeanPostProcessor 注册阶段就建好了，
+            // 回调看不到它们；历史表现是「容器里明明有 BeansProperties，列表里却没有」
+            String propertiesBeanName = context.getBeanNamesForType(BeansProperties.class)[0];
+            assertTrue(beanNames.contains(propertiesBeanName),
+                    "采集名单缺少通道自己的配置 Bean（" + propertiesBeanName + "），实际：" + beanNames);
+            assertTrue(beanNames.contains("beansAutoConfiguration"),
+                    "采集名单缺少装配类，实际：" + beanNames);
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    @DisplayName("同一个实例不会因为补采在列表里出现两次")
+    void shouldNotRegisterSameInstanceTwice(@TempDir Path tempDir) {
+        AnnotationConfigApplicationContext context = newContext(tempDir);
+        try {
+            SpringBeansAnalysisProvider handler = context.getBean(SpringBeansAnalysisProvider.class);
+            List<String> beanNames = handler.getBeanNames(false);
+
+            // environment 已经以合成名登记过，补采时必须按引用跳过它
+            assertTrue(beanNames.contains("@environment"), "合成名登记丢失，实际：" + beanNames);
+            assertFalse(beanNames.contains("environment"),
+                    "同一个 Environment 实例被登记了两次，实际：" + beanNames);
+        } finally {
+            context.close();
+        }
+    }
+
+    private AnnotationConfigApplicationContext newContext(Path tempDir) {
         Map<String, Object> properties = new HashMap<>();
         properties.put("cn.lizl.java-data-analyzer.beans.enable", "true");
         properties.put("cn.lizl.java-data-analyzer.beans.output-root-dir", tempDir.toString());
@@ -75,16 +127,7 @@ class RegistrationCompletenessTest {
         context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("test", properties));
         context.register(BeansAutoConfiguration.class, SampleConfig.class);
         context.refresh();
-        try {
-            SpringBeansAnalysisProvider handler = context.getBean(SpringBeansAnalysisProvider.class);
-
-            // 不 sleep、不轮询：refresh 返回时就该是全量
-            List<String> beanNames = handler.getBeanNames(false);
-            assertTrue(beanNames.contains("sampleAlpha"), "刷新后列表缺少 sampleAlpha，实际：" + beanNames);
-            assertTrue(beanNames.contains("sampleBeta"), "刷新后列表缺少 sampleBeta，实际：" + beanNames);
-        } finally {
-            context.close();
-        }
+        return context;
     }
 
     private void waitUntilRegistered(SpringBeansAnalysisProvider handler, String beanName) throws InterruptedException {

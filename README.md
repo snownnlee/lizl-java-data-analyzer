@@ -15,8 +15,8 @@ Maven 坐标只有 `io.gitee.snownnlee:lizl-java-data-analyzer`；GitHub 仅作�
 | 维度 | 亮点 |
 |---|---|
 | **看得全** | 类结构与实例值可同时分析：同一个产物里既有字段定义，也有真实取值 |
-| **看得清** | 可折叠交互式 HTML，CSS/JS 全内联，**单文件、断网可看**，双击即开 |
-| **看得懂** | 5 种产物形态：`HTML` / `PUML` / `PUML_HTML` / `MERMAID` / `MERMAID_HTML`；类图连线锚定到来源字段行（PUML 系） |
+| **看得清** | 可折叠交互式 HTML，样式/脚本随产物同目录分发（文件名带内容指纹），**断网可看**，双击即开 |
+| **看得懂** | 6 种产物形态：`HTML` / `HTML2` / `PUML` / `PUML_HTML` / `MERMAID` / `MERMAID_HTML`；类图连线锚定到来源字段行（PUML 系） |
 | **接得上** | 纯工具库可直接调；Spring Boot 环境加几行配置，容器里所有 Bean 自动纳入分析。**运行时零依赖**：前端渲染引擎随包分发，不引 CDN、不装 PlantUML |
 | **查得到** | 独立 HTTP 服务（JDK 原生，不依赖 Servlet/WebFlux），浏览器里点 Bean 名直接看对象现状 |
 | **拦得住** | 请求拦截器通道按路径捕获 handler 入参并落盘——线上偶发问题可直接回看那条请求的实参 |
@@ -187,7 +187,8 @@ public class OrderAnalysis {
 
 | 格式 | 说明 |
 |---|---|
-| `HTML` | 可折叠交互式 HTML 树，单文件、断网可看 |
+| `HTML` | 可折叠交互式 HTML 树；DOM 由服务端拼好写进产物，样式/脚本同目录相对引用 |
+| `HTML2` | 同一棵树，产物里只写 JSON 数据骨架，DOM 由同目录脚本构建；页面与交互同 `HTML`，**产物体积小一大截** |
 | `PUML` | PlantUML 文本，需外部渲染器查看 |
 | `PUML_HTML` | 极简 HTML + 同目录 `plantuml-*.js`，浏览器端渲染成图；**离线可看** |
 | `MERMAID` | Mermaid `classDiagram` 文本，GitHub / Typora / Obsidian 原生出图 |
@@ -195,6 +196,14 @@ public class OrderAnalysis {
 
 补充说明：
 
+- `HTML2` 与 `HTML` 是**同一棵树的两种落盘方式**：样式、交互脚本、DOM 结构完全一致，只是 `HTML2` 把
+  「拼标签」搬到浏览器。扩展名都是 `.html`，都靠同目录资源离线打开。
+- `HTML` / `HTML2` 的样式与脚本**不内联**，而是放产物同目录、用相对路径 `./xxx.css`、`./xxx.js` 引用：
+  `tree-style-<指纹>.css`、`tree-interaction-<指纹>.js`（`HTML2` 另有 `tree-builder-<指纹>.js`）。
+  文件名带内容指纹，所以「同名即同内容」——升级后自动换新文件，浏览器也能长期强缓存；
+  同目录多个产物共用一份，不重复落盘。**移动/分发产物时要把这几个文件一起带走。**
+- 体积（同一份较大样本，正文标记约 23 KB）：`HTML` 产物约 24 KB，`HTML2` 约 5.6 KB。
+  `HTML2` 的产物里只剩数据骨架，节点越多差得越多。**默认仍是 `HTML`**。
 - `PUML_HTML` / `MERMAID_HTML` 都是**浏览器端渲染**：写产物时把对应引擎（`plantuml-*.js` + `viz-global-*.js`
   或 `mermaid-*.min.js`）复制到产物**同目录**，页面用相对路径 `./xxx.js` 引用。因此
   **不用联网、不引 CDN、双击 `file://` 打开也能出图**；同目录多个产物共用一份引擎，不重复落盘。
@@ -357,6 +366,13 @@ http://127.0.0.1:18080/lizl-java-data-analyzer/beans
 | `true` | `false` | 每个 Bean 初始化后立即**异步全量分析** | 启动期 CPU 占用高，但打开页面即出结果 |
 | `false` | `true` | 全部单例就绪后统一登记，仍按需分析 | 避开初始化高峰期的提交打扰 |
 | `false` | `false` | 全部就绪后集中分析 | 一次性生成全量快照 |
+
+**哪些 Bean 会出现在列表里**：`BeanPostProcessor` 能观察到的一切 Bean，外加启动收尾时补扫的「已实例化单例」。
+补扫是为了覆盖 `BeansProperties`、`beansAutoConfiguration` 这类**早于采集器创建**的 Bean——它们是采集器自己的
+构造依赖，在 `registerBeanPostProcessors()` 阶段就建好了，回调根本看不到（Spring 会提示
+`not eligible for getting processed by all BeanPostProcessors`）。代价是列表里会带上 Spring 自身的基础设施单例
+（`systemProperties`、`systemEnvironment`、`messageSource`、`internal*Processor` 等），要干净列表用
+`ignore-bean-names` / `ignore-bean-name-pattern` / `ignore-bean-packages` 过滤。
 
 产物落在 `beans.output-root-dir` 下；拦截器通道落在 `interceptor.output-root-dir`（默认
 `~/cn.lizl.project.tool.analysis-result/interceptor`，其下按日期建子目录）。两边目录互不干扰。
@@ -565,6 +581,7 @@ cn:
 | 分析跑很久或产物巨大 | 调小 `max-depth` / `max-node-count`，或设 `analysis-timeout-millis`；集合用 `collections-analyzing-count` 限制 |
 | 想让 `java.` / `javax.` 下的类也展开 | 排除包是运行级与全局级**叠加**，`common-exclude-packages` 删不掉默认规则；改用 `common-include-packages` 指定包（判定在全局 exclude 之前） |
 | `PUML_HTML` / `MERMAID_HTML` 打开后是空白或提示「未找到 xxx.js」 | 产物与同名 js 必须放在**同一目录**（移动产物时要把 js 一起带走）；也可从 jar 的 `analysis/js/` 里复制过去 |
+| `HTML` / `HTML2` 打开后没样式、按钮点了没反应 | 同目录缺 `tree-style-*.css` / `tree-interaction-*.js`（`HTML2` 还缺 `tree-builder-*.js`）：移动产物时这几个文件要一起带走，或从 jar 的 `analysis/html/` 复制过去（注意文件名带指纹） |
 
 ---
 
