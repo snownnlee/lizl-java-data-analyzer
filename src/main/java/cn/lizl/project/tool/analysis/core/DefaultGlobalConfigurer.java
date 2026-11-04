@@ -76,6 +76,11 @@ public final class DefaultGlobalConfigurer implements GlobalConfigurer {
     }
 
     @Override
+    public GlobalConfigurer setAnalyzeOneShotCollections(final boolean value) {
+        return addAction(() -> GlobalConfig.analyzeOneShotCollections = value);
+    }
+
+    @Override
     public GlobalConfigurer setMaskSensitiveValues(final boolean value) {
         return addAction(() -> GlobalConfig.maskSensitiveValues = value);
     }

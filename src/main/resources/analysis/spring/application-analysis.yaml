@@ -91,6 +91,7 @@ cn:
         default-to-expand: false                    # HTML 折叠树默认是否展开；默认 false（收起，只显示类标题）
         add-to-string-field: false                  # 是否给每个节点追加 toString 字段；默认 false（会真实调用一次 toString()，本库内部类除外）
         enable-collection-simple-view: true         # 集合是否按元素展开的紧凑视图；默认 true（false 会把集合当普通对象展开内部结构）
+        analyze-one-shot-collections: false         # 是否消费一次性容器（Iterator/Enumeration，会真实调用 next()）；默认 false 只显示占位提示，开启后迭代器会被耗尽
         mask-sensitive-values: false                # 字段名命中 password/passwd/pwd/secret/token/credential/apikey/api_key/authorization 时值显示为 ***；此处演示关闭效果，默认与推荐值均为 true
 
       # ================= 请求拦截器通道 =================
@@ -125,11 +126,12 @@ cn:
         should-analyze-null-value: true             # 是否分析值为 null 的字段；默认 true
         max-depth: 5                                # 最大分析深度；这里取 5（请求高频触发，宜比 beans 段浅）；不配置则用全局默认 7
         max-node-count: 1000                        # 单次分析最多新建节点数；这里取 1000；不配置用全局默认 2000，≤0 不限制
-        analysis-timeout-millis: 3000               # 单次分析耗时上限（毫秒）；不配置也用安全默认 3000（请求线程同步分析，防 toString 卡死线程池）
+        analysis-timeout-millis: 3000               # 单次分析耗时上限（毫秒）；不配置也用安全默认 3000（协作式超时，仅新建节点边界检查，卡在字段取值/toString 内部时无法中断）
         analysis-mode: ONLY_INSTANCE                # 分析模式；不配置沿用全局 AUTO_BY_COMPUTE
         value-display-length-limit: 800             # 单个值最多显示多少字符；默认 800（容器超出时追加 ...；0 = 空串，负数不限制）
         collections-analyzing-count: 10             # 每个集合最多展开的元素个数；默认 10（请求体常带大集合，宜调小）
         default-to-expand: false                    # 产物页默认展开；默认 false
         add-to-string-field: false                  # 是否给每个节点追加 toString 字段；默认 false（会真实调用一次 toString()，本库内部类除外）
         enable-collection-simple-view: true         # 集合是否按元素展开的紧凑视图；默认 true
+        analyze-one-shot-collections: false         # 是否消费一次性容器（Iterator/Enumeration）；默认 false，开启会耗尽请求入参里的迭代器
         mask-sensitive-values: false                # 敏感字段值脱敏为 ***；默认 true（登录 DTO 等含凭证入参务必保持开启），此处演示关闭效果，默认与推荐值均为 true

@@ -143,14 +143,13 @@ class HttpAnalysisServerTest {
     }
 
     @Test
-    @DisplayName("方法不支持时返回 405，根路径 302 跳转到查看界面")
+    @DisplayName("方法不支持时返回 405，根路径直接返回索引页")
     void shouldRejectWrongMethodAndServeIndexAtRoot() throws IOException {
         server.start();
 
         assertEquals(405, request(PREFIX + "/beans", "PUT", null).status);
         assertEquals(405, request(PREFIX + "/bean/alpha", "POST", null).status);
 
-        // 根路径是索引页，不再是 302 跳转
         Response root = get(PREFIX + "/", null);
         assertEquals(200, root.status);
         assertTrue(root.body.contains("href=\"" + PREFIX + "/beans\""), "索引页应给出 beans 链接：" + root.body);

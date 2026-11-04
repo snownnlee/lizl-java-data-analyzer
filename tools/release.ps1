@@ -49,13 +49,14 @@ $GitHubRemote = 'github'
 $GiteeRemote  = 'gitee'
 $Branch       = 'main'
 
-# JDK8 已知安装位置优先（本项目 target 1.8，环境变量 JAVA_HOME 可能指向其他大版本）
+# 工具链定位：优先读显式环境变量（换机器只需设置这两个变量，脚本内不硬编码任何本机路径）；
+# 未设置时退回指向 1.8 的 JAVA_HOME 与 PATH 中的 mvn
 $JdkCandidates = @(
-    'C:\Users\snown\.jdks\corretto-1.8.0_442',
+    $env:LIZL_RELEASE_JAVA_HOME,
     $(if ($env:JAVA_HOME -match '1\.8') { $env:JAVA_HOME } else { '' })
 )
 $MavenCandidates = @(
-    (Join-Path $env:USERPROFILE 'DSpace\Programs\apache-maven-3.9.9\bin\mvn.cmd'),
+    $env:LIZL_RELEASE_MAVEN,
     'mvn'
 )
 
@@ -428,6 +429,7 @@ $giteeTagExists = $false
 $version = ''
 $tag = ''
 $targetSha = ''
+$tagSha = ''
 $targetShort = ''
 $targetSubject = ''
 $mvn = ''
@@ -502,6 +504,9 @@ try {
     $tagRef = 'refs/tags/' + $tag
     $targetSha = (Invoke-Native 'git' @('rev-parse', ($tagRef + '^{commit}')) ('解析标签 {0} 指向的提交' -f $tag)).Trim()
     Assert-True ($targetSha -match '^[0-9a-f]{40}$') ('标签 {0} 无法解析为提交' -f $tag) $targetSha
+    # ls-remote 对附注标签返回标签对象 SHA、对轻量标签返回提交本身；远端标签比对必须用这个口径，
+    # 与 ^{commit} 的提交 SHA 比对会把正常的附注标签误判为"标签被改写"
+    $tagSha = (Invoke-Native 'git' @('rev-parse', $tagRef) ('解析标签 {0} 的对象 SHA' -f $tag)).Trim()
     $targetShort = $targetSha.Substring(0, 7)
     $targetSubject = (Invoke-Native 'git' @('log', '-1', '--format=%s', $targetSha) '读取标签指向提交的标题').Trim()
     # Release 描述 = 标签指向提交的完整提交信息（标题 + body）
@@ -536,7 +541,7 @@ try {
     $remoteTag = Invoke-GitGitHub @('ls-remote', '--tags', $GitHubRemote, ('refs/tags/' + $tag)) '查询 GitHub 远端标签'
     $githubTagExists = -not [string]::IsNullOrWhiteSpace($remoteTag)
     if ($githubTagExists) {
-        Assert-True ($remoteTag -match $targetSha) `
+        Assert-True ($remoteTag -match $tagSha) `
             ('GitHub 远端标签 {0} 指向不同提交，疑似标签被改写，中止' -f $tag) $remoteTag
         Skip-Step '远端已存在且指向一致，稍后跳过推送'
     }
@@ -546,7 +551,7 @@ try {
     $remoteTag2 = Invoke-Native 'git' @('ls-remote', '--tags', $GiteeRemote, ('refs/tags/' + $tag)) '查询 Gitee 远端标签'
     $giteeTagExists = -not [string]::IsNullOrWhiteSpace($remoteTag2)
     if ($giteeTagExists) {
-        Assert-True ($remoteTag2 -match $targetSha) `
+        Assert-True ($remoteTag2 -match $tagSha) `
             ('Gitee 远端标签 {0} 指向不同提交，疑似标签被改写，中止' -f $tag) $remoteTag2
         Skip-Step '远端已存在且指向一致，稍后跳过推送'
     }
@@ -560,7 +565,7 @@ try {
             break
         }
     }
-    Assert-True (-not [string]::IsNullOrWhiteSpace($javaHome)) '未找到 JDK8（已知安装位置与指向 1.8 的 JAVA_HOME 均无效）'
+    Assert-True (-not [string]::IsNullOrWhiteSpace($javaHome)) '未找到 JDK8：请设置环境变量 LIZL_RELEASE_JAVA_HOME，或让 JAVA_HOME 指向 1.8'
     $mvn = Find-Tool -Candidates $MavenCandidates -ProbeArgs @('-v') -Description 'Maven (mvn.cmd)'
     Complete-Step ('JAVA_HOME={0} · mvn={1}' -f $javaHome, $mvn)
 

@@ -91,9 +91,13 @@ public class InterceptorProperties {
 
     private Boolean enableCollectionSimpleView;
 
+    /** 是否允许消费一次性容器（Iterator/Enumeration）；默认 false，分析不改变对象状态 */
+    private Boolean analyzeOneShotCollections;
+
     /**
-     * 拦截器通道的单次分析安全默认超时：高频触发、默认在请求线程上同步分析，
-     * 某个字段的 {@code toString()} 卡住就会占死线程池，所以未显式配置时也不放开。
+     * 拦截器通道的单次分析安全默认超时：高频触发、默认在请求线程上同步分析，用上限封住单个请求的
+     * 分析总量。注意这是协作式超时，仅在新建节点边界检查；某个字段的 {@code toString()} 卡住时
+     * 仍会占住线程直到调用返回，超时无法中断它。
      */
     public static final int DEFAULT_ANALYSIS_TIMEOUT_MILLIS = 3000;
 
@@ -124,6 +128,7 @@ public class InterceptorProperties {
         checkAndSet(addToStringField, configurer::setAddToStringField);
         checkAndSet(maskSensitiveValues, configurer::setMaskSensitiveValues);
         checkAndSet(enableCollectionSimpleView, configurer::setEnableCollectionSimpleView);
+        checkAndSet(analyzeOneShotCollections, configurer::setAnalyzeOneShotCollections);
         return configurer;
     }
 

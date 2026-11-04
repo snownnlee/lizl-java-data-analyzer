@@ -221,7 +221,8 @@ class HtmlRender2 extends BaseRender {
         if (renderValue) {
             skeleton.append(",\"value\":");
             appendString(CommonUtil.getStringFrom(
-                    fieldValue, runningConfig.valueDisplayLengthLimit, runningConfig.maskSensitiveValues), skeleton);
+                    fieldValue, runningConfig.valueDisplayLengthLimit, runningConfig.maskSensitiveValues,
+                    runningConfig.analyzeOneShotCollections), skeleton);
             return;
         }
         int size = -1;

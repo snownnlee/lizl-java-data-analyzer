@@ -129,6 +129,7 @@ provider.close();
 > 本库会把运行时对象数据**明文导出为报告**，定位是开发与调试辅助工具。
 
 - 报告以明文写入输出目录，无加密与访问控制；目录权限由操作系统决定。产物含字段值，业务 DTO、请求参数、凭证类字段都可能被完整展开。
+- **分析默认是只读操作**：对一次性容器（`Iterator` / `Enumeration`）默认不消费，报告只显示占位提示；显式开启 `analyze-one-shot-collections`（独立服务用 `setAnalyzeOneShotCollections(true)`）后，`next()` / `nextElement()` 会被真实调用、迭代器耗尽。`add-to-string-field` 开启时每节点也会真实调用一次 `toString()`。
 - 敏感值脱敏默认开启（`mask-sensitive-values=true`），按字段名 / Map entry key 匹配 `password`、`token`、`secret`、`authorization` 等子串；这是**按名匹配的防御默认值，不是完备清单**。
 - 拦截器捕获的是请求处理器入参，登录 DTO、请求头绑定值可能含真实凭证；生产开启前用 `include-paths` / `exclude-paths` 圈定路径。
 - **默认绑定 `127.0.0.1` 且无鉴权**：本机任何程序都能访问，绑定回环地址时启动会打 WARN。把 `bind-address` 改成 `0.0.0.0` 或局域网 IP 等非回环地址时，**必须配置** `server.token` 或 `server.auth-user` + `server.auth-password`，否则服务拒绝启动。

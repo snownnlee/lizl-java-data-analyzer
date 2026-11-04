@@ -283,7 +283,8 @@ class HtmlRender extends BaseRender {
             }
             if (renderValue) {
                 String valueString = escapeContent(CommonUtil.getStringFrom(
-                        fieldValue, runningConfig.valueDisplayLengthLimit, runningConfig.maskSensitiveValues));
+                        fieldValue, runningConfig.valueDisplayLengthLimit, runningConfig.maskSensitiveValues,
+                        runningConfig.analyzeOneShotCollections));
                 result.append("<span class='").append(Tokens.FIELD_INFO_VALUE).append("'>").append(valueString).append("</span>");
             } else {
                 int size = -1;

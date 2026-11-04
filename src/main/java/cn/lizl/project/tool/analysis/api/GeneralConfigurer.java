@@ -70,6 +70,9 @@ public interface GeneralConfigurer<T extends GeneralConfigurer<T>> {
     /**
      * 单次分析的耗时上限（毫秒），默认 {@code 0} 不限时。默认关闭是有意的：耗时随机器性能变化，
      * 作默认值会让同一份代码产出不同结果。
+     *
+     * <p>这是协作式超时：仅在新建节点边界检查，用于封住单次分析的总量；若耗时卡在字段取值、
+     * 容器迭代或某个 {@code toString()} 内部，检查点不会执行、无法中断。
      */
     T setAnalyzingTimeoutMillis(int timeoutMillis);
 
@@ -96,6 +99,14 @@ public interface GeneralConfigurer<T extends GeneralConfigurer<T>> {
      * （{@code maskSensitiveValues=true}，默认）时，声明了 password/token 等字段的对象不生成该字段。
      */
     T setAddToStringField(boolean value);
+
+    /**
+     * 是否允许消费一次性容器（{@code Iterator} / {@code Enumeration}），默认 {@code false}。
+     * 关闭时分析不调用 {@code next()} / {@code nextElement()}，报告对这类值只显示占位提示；
+     * 开启后一次性容器会被耗尽（分析有副作用的唯一来源，与 {@code setAddToStringField} 的
+     * {@code toString()} 调用同级）。
+     */
+    T setAnalyzeOneShotCollections(boolean value);
 
     /**
      * 敏感字段（password/token/secret 等，按字段名子串匹配）的值是否脱敏渲染为 {@code ***}，

@@ -105,6 +105,9 @@ public class CommonUtil {
     /** 成环时的占位：继续展开只会无限递归 */
     private static final String CYCLE_MARK = "(循环引用)";
 
+    /** 一次性容器未消费时的占位前缀，与类型名拼接使用 */
+    private static final String ONE_SHOT_UNCONSUMED_MARK = "（一次性容器，未消费）";
+
     /**
      * 产物文件/目录名非法字符表：控制符、Windows 文件名非法字符，
      * 以及 {@code & ^ % !} 等 cmd 元字符（防御纵深：避免文件名进入任何 shell 命令行时被二次解释）。
@@ -169,7 +172,19 @@ public class CommonUtil {
      * 扫描，以免普通文本被误打码。
      */
     public static String getStringFrom(Object object, int lengthLimit, boolean maskSensitiveValues) {
-        return getStringFrom(object, lengthLimit, maskSensitiveValues, Collections.newSetFromMap(new IdentityHashMap<>()));
+        return getStringFrom(object, lengthLimit, maskSensitiveValues, true);
+    }
+
+    /**
+     * 在三参入口之上增加一次性容器（{@code Iterator} / {@code Enumeration}）的消费开关：
+     * {@code consumeOneShotCollections=false} 时不调用 {@code next()} / {@code nextElement()}，
+     * 返回 {@code [类型名（一次性容器，未消费）]} 占位，保证对活对象的格式化是只读操作。
+     * 报告渲染应使用本入口并传入分析配置的同名开关。
+     */
+    public static String getStringFrom(Object object, int lengthLimit, boolean maskSensitiveValues,
+                                       boolean consumeOneShotCollections) {
+        return getStringFrom(object, lengthLimit, maskSensitiveValues, consumeOneShotCollections,
+                Collections.newSetFromMap(new IdentityHashMap<>()));
     }
 
     /**
@@ -178,7 +193,8 @@ public class CommonUtil {
      * <p>{@code path} 只记「当前递归路径上」的容器，命中即成环——自引用集合会让
      * {@code HashMap.toString()} 之类一路展开。用路径而非「已访问」：同一容器被并列引用两次时要各自展开。
      */
-    private static String getStringFrom(Object object, int lengthLimit, boolean maskSensitive, Set<Object> path) {
+    private static String getStringFrom(Object object, int lengthLimit, boolean maskSensitive,
+                                        boolean consumeOneShot, Set<Object> path) {
         if (object == null) {
             return "null";
         }
@@ -193,7 +209,7 @@ public class CommonUtil {
             return CYCLE_MARK;
         }
         try {
-            return formatValue(object, lengthLimit, maskSensitive, path);
+            return formatValue(object, lengthLimit, maskSensitive, consumeOneShot, path);
         } finally {
             if (container) {
                 path.remove(object);
@@ -209,7 +225,8 @@ public class CommonUtil {
                 || object instanceof Map;
     }
 
-    private static String formatValue(Object object, int lengthLimit, boolean maskSensitive, Set<Object> path) {
+    private static String formatValue(Object object, int lengthLimit, boolean maskSensitive,
+                                      boolean consumeOneShot, Set<Object> path) {
         if (object.getClass().isArray()) {
             StringJoiner resultJoiner = new StringJoiner(", ", "[", "]");
             int length = Array.getLength(object);
@@ -218,7 +235,7 @@ public class CommonUtil {
                     resultJoiner.add("...");
                     break;
                 }
-                resultJoiner.add(getStringFrom(Array.get(object, i), lengthLimit, maskSensitive, path));
+                resultJoiner.add(getStringFrom(Array.get(object, i), lengthLimit, maskSensitive, consumeOneShot, path));
             }
             return resultJoiner.toString();
         }
@@ -236,11 +253,14 @@ public class CommonUtil {
                     resultJoiner.add("...");
                     break;
                 }
-                resultJoiner.add(getStringFrom(item, lengthLimit, maskSensitive, path));
+                resultJoiner.add(getStringFrom(item, lengthLimit, maskSensitive, consumeOneShot, path));
             }
             return resultJoiner.toString();
         }
         if (object instanceof Enumeration) {
+            if (!consumeOneShot) {
+                return object.getClass().getName() + ONE_SHOT_UNCONSUMED_MARK;
+            }
             StringJoiner resultJoiner = new StringJoiner(" --> ", "[", "]");
             Enumeration<?> enumeration = (Enumeration<?>) object;
             while (enumeration.hasMoreElements()) {
@@ -248,11 +268,14 @@ public class CommonUtil {
                     resultJoiner.add("...");
                     break;
                 }
-                resultJoiner.add(getStringFrom(enumeration.nextElement(), lengthLimit, maskSensitive, path));
+                resultJoiner.add(getStringFrom(enumeration.nextElement(), lengthLimit, maskSensitive, consumeOneShot, path));
             }
             return resultJoiner.toString();
         }
         if (object instanceof Iterator) {
+            if (!consumeOneShot) {
+                return object.getClass().getName() + ONE_SHOT_UNCONSUMED_MARK;
+            }
             StringJoiner resultJoiner = new StringJoiner(" -> ", "[", "]");
             Iterator<?> iterator = (Iterator<?>) object;
             while (iterator.hasNext()) {
@@ -260,7 +283,7 @@ public class CommonUtil {
                     resultJoiner.add("...");
                     break;
                 }
-                resultJoiner.add(getStringFrom(iterator.next(), lengthLimit, maskSensitive, path));
+                resultJoiner.add(getStringFrom(iterator.next(), lengthLimit, maskSensitive, consumeOneShot, path));
             }
             return resultJoiner.toString();
         }
@@ -271,11 +294,11 @@ public class CommonUtil {
                     resultJoiner.add("...");
                     break;
                 }
-                String keyText = getStringFrom(entry.getKey(), lengthLimit, maskSensitive, path);
+                String keyText = getStringFrom(entry.getKey(), lengthLimit, maskSensitive, consumeOneShot, path);
                 // 容器内部的 key 渲染层看不到：命中敏感名单时只替换该项的「值」，key 与其它 entry 照常展示
                 String valueText = maskSensitive && isSensitiveName(keyText)
                         ? SENSITIVE_VALUE_MARK
-                        : getStringFrom(entry.getValue(), lengthLimit, maskSensitive, path);
+                        : getStringFrom(entry.getValue(), lengthLimit, maskSensitive, consumeOneShot, path);
                 resultJoiner.add(keyText + "=" + valueText);
             }
             return resultJoiner.toString();

@@ -122,6 +122,12 @@ abstract class BaseRunningConfigurer extends RunningConfigCapable implements Run
     }
 
     @Override
+    public RunningConfigurer setAnalyzeOneShotCollections(final boolean value) {
+        runningConfig.analyzeOneShotCollections = value;
+        return this;
+    }
+
+    @Override
     public RunningConfigurer setMaskSensitiveValues(final boolean value) {
         runningConfig.maskSensitiveValues = value;
         return this;

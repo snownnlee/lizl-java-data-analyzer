@@ -82,6 +82,9 @@ public class BeansProperties {
 
     private Boolean enableCollectionSimpleView;
 
+    /** 是否允许消费一次性容器（Iterator/Enumeration）；默认 false，分析不改变对象状态 */
+    private Boolean analyzeOneShotCollections;
+
     /** 空白字符串视为未配置 */
     private static final Pattern WHITESPACE_ONLY = Pattern.compile("\\s*");
 
@@ -108,6 +111,7 @@ public class BeansProperties {
         checkAndSet(addToStringField, configurer::setAddToStringField);
         checkAndSet(maskSensitiveValues, configurer::setMaskSensitiveValues);
         checkAndSet(enableCollectionSimpleView, configurer::setEnableCollectionSimpleView);
+        checkAndSet(analyzeOneShotCollections, configurer::setAnalyzeOneShotCollections);
         return configurer;
     }
 

@@ -31,6 +31,8 @@ class RunningConfig {
 
     boolean enableCollectionSimpleView = GlobalConfig.enableCollectionSimpleView;
 
+    boolean analyzeOneShotCollections = GlobalConfig.analyzeOneShotCollections;
+
     boolean addToStringField = GlobalConfig.addToStringField;
 
     boolean maskSensitiveValues = GlobalConfig.maskSensitiveValues;
@@ -54,6 +56,7 @@ class RunningConfig {
         defaultToExpand = GlobalConfig.defaultToExpand;
         analysisMode = GlobalConfig.analysisMode;
         enableCollectionSimpleView = GlobalConfig.enableCollectionSimpleView;
+        analyzeOneShotCollections = GlobalConfig.analyzeOneShotCollections;
         addToStringField = GlobalConfig.addToStringField;
         maskSensitiveValues = GlobalConfig.maskSensitiveValues;
         renderType = GlobalConfig.renderType;

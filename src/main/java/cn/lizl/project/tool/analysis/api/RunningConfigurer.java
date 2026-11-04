@@ -61,6 +61,22 @@ public interface RunningConfigurer extends GeneralConfigurer<RunningConfigurer> 
     RunningConfigurer run(OutputContentReceiver outputContentReceiver);
 
     /**
+     * 写文件入口的具名版本，裸 lambda 可直接推断类型，等同
+     * {@link #run(OutputFileReceiver)}（该重载保留仅为兼容）。
+     */
+    default RunningConfigurer runToFile(OutputFileReceiver outputFileReceiver) {
+        return run(outputFileReceiver);
+    }
+
+    /**
+     * 取内容入口的具名版本，裸 lambda 可直接推断类型，等同
+     * {@link #run(OutputContentReceiver)}（该重载保留仅为兼容）。
+     */
+    default RunningConfigurer runToContent(OutputContentReceiver outputContentReceiver) {
+        return run(outputContentReceiver);
+    }
+
+    /**
      * 执行分析并把产物写入文件，只打印路径，等同 {@code run(OutputFileReceiver.DEFAULT)}。
      */
     default RunningConfigurer run() {

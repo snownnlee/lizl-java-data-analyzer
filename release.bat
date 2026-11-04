@@ -1,21 +1,23 @@
 @echo off
+rem 统一 UTF-8（无 BOM）存储，运行时切到 65001 代码页保证中文正常显示
+chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 
 echo ==========================================
-echo  lizl-java-data-analyzer һ�� Release
+echo  lizl-java-data-analyzer 一键 Release
 echo ==========================================
 echo.
 
 if not exist "%~dp0tools\release.ps1" (
-  echo [����] δ�ҵ� tools\release.ps1
+  echo [错误] 未找到 tools\release.ps1
   pause
   exit /b 1
 )
 
 where powershell >nul 2>&1
 if errorlevel 1 (
-  echo [����] δ�ҵ� PowerShell���޷�ִ�з�������
+  echo [错误] 未找到 PowerShell，无法执行发布流程
   pause
   exit /b 1
 )
@@ -25,17 +27,17 @@ set "CODE=%ERRORLEVEL%"
 
 echo.
 if "%CODE%"=="2" (
-  echo [ȡ��] ����ȷ�ϲ�����ֹ��δ�����κ�Զ�˱����
+  echo [取消] 已在确认步骤中止，未产生任何远端变更。
   pause
   exit /b 0
 )
 
 if not "%CODE%"=="0" (
-  echo [ʧ��] �������жϣ��˳��� %CODE%���밴�Ϸ����洦�������ܡ�
+  echo [失败] 流程已中断，退出码 %CODE%。请按上方报告处理后重跑。
   pause
   exit /b %CODE%
 )
 
-echo [���] �����ɹ���
+echo [完成] 发布成功。
 pause
 exit /b 0

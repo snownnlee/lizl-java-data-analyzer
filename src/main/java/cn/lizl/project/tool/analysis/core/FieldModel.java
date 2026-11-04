@@ -146,6 +146,10 @@ class FieldModel extends RunningConfigCapable {
                 }
             }
             if (sourceValue instanceof Enumeration) {
+                // 一次性容器默认不消费：nextElement() 会耗尽迭代器，也不展开其内部结构（含下方类型分析兜底）
+                if (!runningConfig.analyzeOneShotCollections) {
+                    return;
+                }
                 if (shouldAnalyzeAsCollection(sourceValue)) {
                     Enumeration<?> enumerationValue = (Enumeration<?>) sourceValue;
                     int count = 0;
@@ -160,6 +164,10 @@ class FieldModel extends RunningConfigCapable {
                 }
             }
             if (sourceValue instanceof Iterator) {
+                // 一次性容器默认不消费：next() 会耗尽迭代器，也不展开其内部结构（含下方类型分析兜底）
+                if (!runningConfig.analyzeOneShotCollections) {
+                    return;
+                }
                 if (shouldAnalyzeAsCollection(sourceValue)) {
                     Iterator<?> iteratorValue = (Iterator<?>) sourceValue;
                     int count = 0;
@@ -223,9 +231,10 @@ class FieldModel extends RunningConfigCapable {
         if (simpleViewElementValues == null) {
             simpleViewElementValues = new ArrayList<>();
         }
-        // display 可能是嵌套容器，交给带脱敏标志的格式化入口处理其中的敏感 key
+        // display 可能是嵌套容器，交给带脱敏标志的格式化入口处理其中的敏感 key；
+        // 一次性容器的消费开关同步传入，嵌套 Iterator/Enumeration 同样不被消耗
         simpleViewElementValues.add(CommonUtil.getStringFrom(display, runningConfig.valueDisplayLengthLimit,
-                runningConfig.maskSensitiveValues));
+                runningConfig.maskSensitiveValues, runningConfig.analyzeOneShotCollections));
     }
 
     /** 简单视图下被排除元素的显示值；非集合元素字段为 {@code null} */

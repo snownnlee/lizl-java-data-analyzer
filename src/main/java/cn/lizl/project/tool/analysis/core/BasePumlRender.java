@@ -313,7 +313,8 @@ abstract class BasePumlRender extends BaseRender {
 
     protected String valueText(Object value) {
         return cleanText(CommonUtil.getStringFrom(
-                value, runningConfig.valueDisplayLengthLimit, runningConfig.maskSensitiveValues));
+                value, runningConfig.valueDisplayLengthLimit, runningConfig.maskSensitiveValues,
+                runningConfig.analyzeOneShotCollections));
     }
 
     /** 该字段是否直接展示字面量值：没有展开成子节点，或本身就是枚举。 */
