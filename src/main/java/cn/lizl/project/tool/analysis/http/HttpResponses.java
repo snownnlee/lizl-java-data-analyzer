@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -54,15 +55,19 @@ public final class HttpResponses {
     }
 
     /**
-     * 流式发送文件：响应头带 Content-Length 后直接 {@link Files#copy} 到响应流，
-     * 不把整个产物读进内存（大报告整读会在多线程并发时内存翻倍）。
-     * <p>
-     *  405 必须带 Allow 头（RFC 7231），客户端才能自适应重试 */
+     * 405 必须带 {@code Allow} 头（RFC 7231），客户端才能据此换方法重试。
+     */
     public static void methodNotAllowed(HttpExchange exchange, String... allowedMethods) throws IOException {
         exchange.getResponseHeaders().set("Allow", String.join(", ", allowedMethods));
         text(exchange, 405, "method not allowed");
     }
 
+    /**
+     * 流式发送文件：按文件长度给出 {@code Content-Length} 后直接 {@link Files#copy} 到响应流，
+     * 不把整份产物读进内存（大报告整读会在并发时内存翻倍）。
+     *
+     * <p>一律 {@code no-store}：产物会随 {@code ?rebuild=true} 变化，缓存住会看到旧报告。
+     */
     public static void file(HttpExchange exchange, String contentType, File file) throws IOException {
         exchange.getResponseHeaders().set("Content-Type", contentType);
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
@@ -96,6 +101,9 @@ public final class HttpResponses {
      *
      * <p>文件名自带版本或内容指纹、内容永不变，所以给一年强缓存：同一台机器上的多个产物共用一份，
      * 浏览器只真正下载一次。
+     *
+     * <p>注意两类资源的保障不同：{@code HtmlTreeAssets} 是内容指纹（改内容必换名）；前端引擎只带
+     * <b>上游版本号</b>且内容经过本地改写——改写内容必须同步升版本号，见 {@code FrontendAssets}。
      */
     public static void immutableAsset(HttpExchange exchange, String contentType, byte[] content) throws IOException {
         exchange.getResponseHeaders().set("Content-Type", contentType);
@@ -113,7 +121,7 @@ public final class HttpResponses {
     }
 
     public static String contentTypeOf(String fileName) {
-        String lower = fileName.toLowerCase();
+        String lower = fileName.toLowerCase(Locale.ROOT);
         return lower.endsWith(".html") ? CONTENT_TYPE_HTML : CONTENT_TYPE_TEXT;
     }
 }

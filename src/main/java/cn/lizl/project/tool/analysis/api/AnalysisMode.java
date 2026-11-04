@@ -1,5 +1,11 @@
 package cn.lizl.project.tool.analysis.api;
 
+/**
+ * 分析模式：声明分析目标是按「类型」还是按「实例值」展开。
+ *
+ * <p>「按类型」只看声明类型并继续展开其结构，「按实例」才读取运行时值。
+ * 由 {@code setAnalysisMode} 配置，全局默认 {@link #AUTO_BY_COMPUTE}。
+ */
 public enum AnalysisMode {
     /** 只按类型分析。 */
     ONLY_CLASS,

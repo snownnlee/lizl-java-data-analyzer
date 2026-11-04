@@ -4,9 +4,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Map;
@@ -113,21 +110,12 @@ public final class HtmlTreeAssets {
             return;
         }
         try {
-            if (!directory.isDirectory() && !directory.mkdirs() && !directory.isDirectory()) {
-                throw new IOException("无法创建输出目录：" + directory);
-            }
-            // 先写临时文件再原子改名：并发写同一目录时不会留下半截文件（浏览器会当成语法错误）
-            Path temp = Files.createTempFile(directory.toPath(), asset.servedName + ".", ".tmp");
-            try {
-                Files.write(temp, asset.content);
-                Files.move(temp, target.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            } finally {
-                Files.deleteIfExists(temp);
-            }
+            CommonUtil.writeFileAtomically(directory, target, asset.content);
         } catch (IOException | RuntimeException e) {
             LOG.log(Level.WARNING, "样式/脚本 " + asset.servedName + " 未能写入 " + directory
                     + "，该目录下的 HTML 产物会缺样式或交互（可手工从 jar 的 "
-                    + ResourcePaths.HTML_DIR + " 复制 " + asset.servedName + " 过去）", e);
+                    + ResourcePaths.html(asset.fileName) + " 取内容，另存为 "
+                    + asset.servedName + " 后放入该目录）", e);
         }
     }
 
@@ -141,7 +129,7 @@ public final class HtmlTreeAssets {
 
     private static Asset build(String fileName) {
         byte[] content = compact(fileName, readRaw(fileName)).getBytes(StandardCharsets.UTF_8);
-        return new Asset(servedName(fileName, content), content);
+        return new Asset(fileName, servedName(fileName, content), content);
     }
 
     /** CSS 与 JS 的压缩规则不同，按扩展名分派；压缩在加载时做一次，产出的是最终会进产物的那份文本 */
@@ -183,11 +171,16 @@ public final class HtmlTreeAssets {
 
     private static final class Asset {
 
+        /** jar 内的原名（如 {@code tree-style.css}），排障提示里让用户知道该取哪个文件 */
+        private final String fileName;
+
+        /** 产物里引用的名字（带内容指纹，如 {@code tree-style-1a2b3c4d.css}） */
         private final String servedName;
 
         private final byte[] content;
 
-        private Asset(String servedName, byte[] content) {
+        private Asset(String fileName, String servedName, byte[] content) {
+            this.fileName = fileName;
             this.servedName = servedName;
             this.content = content;
         }

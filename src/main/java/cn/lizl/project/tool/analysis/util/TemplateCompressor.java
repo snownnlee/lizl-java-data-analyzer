@@ -1,8 +1,8 @@
 package cn.lizl.project.tool.analysis.util;
 
 /**
- * 模板压缩器：只压内联 {@code <style>}/{@code <script>} 段内的注释与首尾空白，不动 HTML 骨架、
- * 不动字符串字面量。
+ * 模板压缩器：压内联 {@code <style>}/{@code <script>} 段内的注释与空白；HTML 骨架只做
+ * 「去行首缩进 + CRLF 归一」（{@link #stripLineIndent}），不重排、不合并标签。
  *
  * <p>模板加载时压一次，之后复用压缩结果，源模板保持可读可维护。
  *
@@ -10,7 +10,8 @@ package cn.lizl.project.tool.analysis.util;
  * {@code http.ClasspathResource.readHtml} 压页面模板。此前的包私有位置在 {@code core}，http 包够不到。
  *
  * <p>刻意不做的事：不删除 {@code :} 前的空格（{@code a :hover} 语义不同）；不合并 JS 行（影响 ASI）；
- * 不动 {@code +} {@code -} 两侧空白（{@code calc()} 依赖它）；字符串字面量逐字符保留。
+ * 不动 {@code +} {@code -} 两侧空白（{@code calc()} 依赖它）；普通字符串字面量逐字符保留
+ * （跨行模板字符串会去行尾空白，见 {@link #compactJs(String)}）。
  */
 public final class TemplateCompressor {
 
@@ -21,7 +22,7 @@ public final class TemplateCompressor {
     }
 
     /**
-     * 压缩整个模板中的内联 CSS / JS，HTML 骨架与占位符保持原样。
+     * 压缩整个模板中的内联 CSS / JS；HTML 骨架只去行首缩进与 CRLF，占位符文本不变。
      *
      * @param html 模板全文
      * @return 压缩后的模板；入参为空时原样返回
@@ -125,6 +126,8 @@ public final class TemplateCompressor {
             if (c == '/' && i + 1 < length && css.charAt(i + 1) == '*') {
                 int commentEnd = css.indexOf("*/", i + 2);
                 i = commentEnd < 0 ? length - 1 : commentEnd + 1;
+                // CSS 注释是词法分隔符：a/*c*/b 不能拼成 ab，两侧非结构字符时补一个空格
+                pendingSpace = out.length() > 0 && !isTightBoundary(out.charAt(out.length() - 1));
                 continue;
             }
 
@@ -159,9 +162,11 @@ public final class TemplateCompressor {
     }
 
     /**
-     * JS：逐行去行首缩进与行尾空白、删整行注释与空行。换行一律保留，避免影响自动分号插入。
+     * JS：逐行去行首缩进与行尾空白、删整行的块注释（以 {@code /*} 开头且整行成块的那种）与空行。
+     * 换行一律保留，避免影响自动分号插入。
      *
-     * <p>跨行模板字符串（反引号）内部不做任何修剪：那里的缩进与空行是字面量内容。
+     * <p>跨行模板字符串（反引号）内只去行尾空白与 {@code \r}，行首缩进与空行原样保留（那是字面量内容）。
+     * 行注释 {@code //} 一律保留：纯文本层面无法区分它与字符串/正则里的 {@code //}。
      */
     public static String compactJs(String js) {
         String[] lines = js.split("\n", -1);

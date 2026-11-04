@@ -49,19 +49,18 @@ public class InterceptorProperties {
     /** 每个日期目录各自保留的产物上限，{@code <=0} 表示不限制。默认 3000。 */
     private Integer outputRetention;
 
-    /** 本通道默认产物根目录：全局默认目录下的 interceptor 子目录，避免与 beans 产物混在一起 */
+    /** 本通道默认产物根目录：全局默认目录下的 interceptor 子目录，避免与 beans 产物混在一起。 */
     public static final String DEFAULT_OUTPUT_ROOT_DIR =
             System.getProperty("user.home") + java.io.File.separator
                     + "cn.lizl.project.tool.analysis-result" + java.io.File.separator + "interceptor";
 
-    /** 本通道产物的根目录（其下按日期建子目录） */
+    /** 本通道产物的根目录（其下按日期建子目录）。 */
     private String outputRootDir = DEFAULT_OUTPUT_ROOT_DIR;
 
     /**
-     * 渲染类型。本通道<b>自己带默认值 HTML</b>，不继承全局 {@code render-type}：
-     * 产物扩展名要在此处就确定（写盘器先于渲染拿文件名），留空会导致扩展名与实际内容不符。
+     * 渲染类型，默认值 HTML2。
      */
-    private RenderType renderType = RenderType.HTML;
+    private RenderType renderType = RenderType.HTML2;
 
     private String[] commonExcludePackages;
 

@@ -6,6 +6,8 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -45,6 +47,9 @@ abstract class BasePumlRender extends BaseRender {
 
     /** 警告 / 未解析提示，对齐 HTML {@code .common_info_model} */
     protected static final String COLOR_WARN = "#ff5555";
+
+    /** 目标因深度/预算受限未能展开时的行内标注（PlantUML 与 Mermaid 共用文案） */
+    protected static final String MARK_DEPTH_LIMIT = "⚠ 深度受限";
 
     /** 警告文本折行宽度，避免超长单行把类框撑变形。 */
     protected static final int INFO_WRAP_WIDTH = 72;
@@ -262,10 +267,13 @@ abstract class BasePumlRender extends BaseRender {
     }
 
     /**
-     * 字段行：{@code [static] name : Type [final] [= value | [size]]}，每段各自着色，与 HTML 的
-     * {@code .field_model_info_*} 规则一一对应。
+     * 字段行：{@code [static] name : Type [final] [= value | [size] [= [v1, v2, ...]]]}，
+     * 每段各自着色，与 HTML 的 {@code .field_model_info_*} 规则一一对应。
      *
-     * @param renderValue 是否展示字段值；false 时只展示集合大小，与 HTML 口径一致
+     * @param renderValue 是否直接展示字段值；{@code false} 表示该字段已展开成子节点、字面量交给
+     *                    子节点呈现，此处只补集合大小 {@code [size]}（非容器不显示），若元素走简单
+     *                    视图（未建节点但收集了显示值）再补一段 {@code = [元素值...]}；
+     *                    {@code true} 时直接展示字面量（枚举也走这一支）
      */
     protected String buildFieldLine(FieldModel fieldModel, boolean renderValue) {
         StringBuilder line = new StringBuilder(64);
@@ -307,6 +315,23 @@ abstract class BasePumlRender extends BaseRender {
         return cleanText(CommonUtil.getStringFrom(value, runningConfig.valueDisplayLengthLimit));
     }
 
+    /** 该字段是否直接展示字面量值：没有展开成子节点，或本身就是枚举。 */
+    protected static boolean renderFieldValueDirectly(FieldModel fieldModel) {
+        return fieldModel.fieldTypeClassesModels.isEmpty()
+                || fieldModel.sourceField.getType().isEnum()
+                || fieldModel.sourceFieldValue instanceof Enum;
+    }
+
+    /** 该字段是否有目标因超出解析深度/预算而未能展开。 */
+    protected static boolean isDepthLimited(FieldModel fieldModel) {
+        for (ClassModel fieldTypeClassModel : fieldModel.fieldTypeClassesModels) {
+            if (fieldTypeClassModel instanceof ClassModel.InfoClassModel) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * 简单视图下集合元素值内联：{@code tags : List<String> [2] = [alpha, beta]}。分析不建节点是设计
      * 行为，但被包排除规则挡掉的元素值必须在这里可见。格式沿用 size → = → 值的分段着色。
@@ -320,16 +345,7 @@ abstract class BasePumlRender extends BaseRender {
             line.append(' ');
         }
         line.append(colorize(COLOR_EQUAL, "=")).append(' ');
-        line.append(wrapEscapedColorize("[" + truncateJoined(values) + "]"));
-    }
-
-    private String truncateJoined(List<String> values) {
-        String joined = String.join(", ", values);
-        int limit = runningConfig.valueDisplayLengthLimit;
-        if (limit > 0 && joined.length() > limit) {
-            return joined.substring(0, limit) + "…";
-        }
-        return joined;
+        line.append(wrapEscapedColorize("[" + simpleViewInlineText(values) + "]"));
     }
 
     protected static int sizeOf(Object value) {
@@ -343,5 +359,69 @@ abstract class BasePumlRender extends BaseRender {
             return ((Map<?, ?>) value).size();
         }
         return -1;
+    }
+
+    /** 同类型多实例的出现序号：按遍历顺序编号，保证同一输入多次渲染结果稳定可 diff。 */
+    protected static final class InstanceOrdinals {
+
+        /** 类型 → 实例 → 出现序号；实例按引用区分（IdentityHashMap），避免大对象 equals 代价 */
+        private final Map<Class<?>, Map<Object, Integer>> ordinals = new HashMap<>();
+
+        InstanceOrdinals(ClassModel[] rootClassModels) {
+            for (ClassModel rootClassModel : rootClassModels) {
+                collectInstances(rootClassModel);
+            }
+        }
+
+        private void collectInstances(ClassModel classModel) {
+            if (classModel == null || classModel instanceof ClassModel.LinkClassModel) {
+                return;
+            }
+            if (classModel.sourceClass != null && classModel.sourceClassInstance != null) {
+                Map<Object, Integer> perClass = ordinals
+                        .computeIfAbsent(classModel.sourceClass, key -> new IdentityHashMap<>());
+                if (!perClass.containsKey(classModel.sourceClassInstance)) {
+                    perClass.put(classModel.sourceClassInstance, perClass.size() + 1);
+                }
+            }
+            for (FieldModel fieldModel : classModel.fieldModels) {
+                for (ClassModel fieldTypeClassModel : fieldModel.fieldTypeClassesModels) {
+                    collectInstances(fieldTypeClassModel);
+                }
+            }
+            collectInstances(classModel.superClassModel);
+        }
+
+        /** 同类型多实例时返回 {@code @1} / {@code @2} 这类区分后缀，否则返回 null。 */
+        String instanceSuffix(ClassModel classModel) {
+            if (classModel.sourceClass == null || classModel.sourceClassInstance == null) {
+                return null;
+            }
+            Map<Object, Integer> perClass = ordinals.get(classModel.sourceClass);
+            if (perClass == null || perClass.size() <= 1) {
+                return null;
+            }
+            Integer ordinal = perClass.get(classModel.sourceClassInstance);
+            return ordinal == null ? null : "@" + ordinal;
+        }
+    }
+
+    /** 类别名 → 声明顺序：用于区分「向后展开」与「回指已出现的节点」。 */
+    protected static final class DeclarationOrder {
+
+        private final Map<String, Integer> order = new HashMap<>();
+
+        void markDeclared(String classAlias) {
+            if (!order.containsKey(classAlias)) {
+                order.put(classAlias, order.size());
+            }
+        }
+
+        /** 目标比源更早声明则为环引用，画虚线；任一方未声明时按实线处理。 */
+        boolean isBackEdge(String fromAlias, String targetAlias) {
+            Integer from = order.get(fromAlias);
+            Integer target = order.get(targetAlias);
+            return from != null && target != null && target < from;
+        }
     }
 }

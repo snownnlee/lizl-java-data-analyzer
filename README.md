@@ -138,7 +138,7 @@ public class OrderAnalysis {
 |---|---|---|---|
 | `setGlobalOutputRootDir` | String | `用户主目录/cn.lizl.project.tool.analysis-result` | 全局输出根目录 |
 | `setCommonIncludePackages` | String... | 空 | 只分析这些包（空 = 不限制） |
-| `setCommonExcludePackages` | String... | `java.` `javax.` `jakarta.` `jdk.` `sun.` | 排除这些包 |
+| `setCommonExcludePackages` | String... | `com.sun.` `java.` `javax.` `jakarta.` `jdk.` `sun.` | 排除这些包 |
 | `setCommonExcludePackagesToDefault` | - | - | 恢复为上述默认排除包 |
 | `setClassLoader` | ClassLoader | GlobalConfig 的类加载器 | 分析时使用的类加载器 |
 | `setThrowExceptionWhenStringClassNotFound` | boolean | `false` | 按类名字符串找不到类时是否抛异常 |
@@ -203,7 +203,7 @@ public class OrderAnalysis {
   文件名带内容指纹，所以「同名即同内容」——升级后自动换新文件，浏览器也能长期强缓存；
   同目录多个产物共用一份，不重复落盘。**移动/分发产物时要把这几个文件一起带走。**
 - 体积（同一份较大样本，正文标记约 23 KB）：`HTML` 产物约 24 KB，`HTML2` 约 5.6 KB。
-  `HTML2` 的产物里只剩数据骨架，节点越多差得越多。**默认仍是 `HTML`**。
+  `HTML2` 的产物里只剩数据骨架，节点越多差得越多。
 - `PUML_HTML` / `MERMAID_HTML` 都是**浏览器端渲染**：写产物时把对应引擎（`plantuml-*.js` + `viz-global-*.js`
   或 `mermaid-*.min.js`）复制到产物**同目录**，页面用相对路径 `./xxx.js` 引用。因此
   **不用联网、不引 CDN、双击 `file://` 打开也能出图**；同目录多个产物共用一份引擎，不重复落盘。
@@ -276,16 +276,18 @@ server.register(new HttpServiceHandler() {
 });
 ```
 
-路由按 `getPathPrefixes()` 做**最长前缀匹配**，该集合是处理器的固有声明，实现方应返回常量而不是每次调用新建
-（beans 通道就是这样同时声明 `/beans` 与 `/bean/`，所以 `/bean/` 优先于 `/beans`，`/interceptors` 不会误命中
-`/interceptor`）。根路径索引页的卡片与链接由注册表按 `getEntryPath()` 自动生成（并自动带上 token）。
+路由按注册顺序询问各处理器，**先命中者胜**；默认 `supports` 只在同一处理器内部按 `getPathPrefixes()` 判定
+"认不认领"，不参与跨处理器仲裁。前缀按**路径段边界**匹配（`/customx` 不会误命中 `/custom`，`/interceptors`
+不会误命中 `/interceptor`）。该集合是处理器的固有声明，实现方应返回常量而不是每次调用新建。
+两个处理器前缀重叠时**先注册者优先**——需要更具体的处理器先生效就把它先注册。
+根路径索引页的卡片与链接由注册表按 `getEntryPath()` 自动生成（并自动带上 token）。
 
 Spring 环境下不必手工注册：容器里**任何** `HttpServiceHandler` Bean 都会被 `server.enable=true` 的服务自动收集挂载
 （beans 与 interceptor 两个通道就是这样各自提供自己处理器的），新增通道只需在自己的自动配置里提供一个该类型的 Bean。
 
 反过来也成立：**`server.enable=false` 时不注册任何处理器 Bean**——处理器唯一的消费者就是那台服务器，
 服务不存在时它只是一份没人读的模板缓存。通道是否启用不影响处理器的注册：服务在、通道没开时处理器照样注册，
-于是访问该组得到的是「通道未启用」提示，而不是 `not found`。
+于是访问该组返回 **404**，body 是「通道未启用」的开启指引而不是 `not found`。
 
 ---
 
@@ -502,7 +504,7 @@ cn:
 顺序为 `运行级 include → 运行级 exclude → 全局 include → 全局 exclude`。因此：
 
 - 配置里的 `common-exclude-packages` 只会**追加**规则，**删不掉全局默认的**
-  `java.` / `javax.` / `jakarta.` / `jdk.` / `sun.`
+  `com.sun.` / `java.` / `javax.` / `jakarta.` / `jdk.` / `sun.`
 - 想把被默认排除的包（例如 `java.` 下的类）拉进分析，用 `common-include-packages`——运行级 include
   判定在全局 exclude 之前，能直接抢回
 - 只接受**非空且无空白项**的数组：不写 / 留空 / `[]` 三者等价（都表示本层不追加规则），
@@ -531,14 +533,14 @@ cn:
 | `ignore-bean-name-pattern` | String | 空 | 按 Bean 名称正则忽略（`String.matches` 全匹配） |
 | `ignore-bean-packages` | String[] | 空 | 按类、父类、父接口的类名包前缀忽略 |
 | `output-root-dir` | String | 全局默认目录 | 本通道产物根目录 |
-| `render-type` | RenderType | 全局配置（默认 `HTML`） | 产物格式 |
+| `render-type` | RenderType | 本通道默认 `HTML` | 产物格式 |
 | `common-exclude-packages` / `common-include-packages` | String[] | 空 | 包规则，追加合并、非空才生效 |
 | `analyze-static-field` | boolean | `false` | 是否分析静态字段 |
 | `should-analyze-null-value` | boolean | `true` | 是否分析 null 值 |
 | `max-depth` | int | `7` | 最大分析深度 |
 | `max-node-count` | int | `2000` | 单次分析最多新建节点数，`≤0` 不限制 |
 | `analysis-timeout-millis` | int | `0` | 单次分析耗时上限，`≤0` 不限制 |
-| `analysis-mode` | AnalysisMode | 全局配置（默认 `AUTO_BY_COMPUTE`） | 分析模式；未配置时不再强制 `ONLY_INSTANCE` |
+| `analysis-mode` | AnalysisMode | 全局配置（默认 `AUTO_BY_COMPUTE`） | 分析模式 |
 | `value-display-length-limit` | int | `800` | 字段值显示长度上限 |
 | `collections-analyzing-count` | int | `10` | 集合最多展开元素数 |
 | `default-to-expand` | boolean | `false` | HTML 折叠树默认是否展开 |
@@ -559,7 +561,7 @@ cn:
 | `output-root-dir` | String | `~/cn.lizl.project.tool.analysis-result/interceptor` | 本通道产物根目录（其下按日期建子目录） |
 | `output-queue-capacity` | int | `64` | 异步写盘队列容量；满载降级为调用线程同步落盘 |
 | `output-retention` | int | `3000` | 每个日期目录各自保留的产物上限，`≤0` 不限制 |
-| `render-type` | RenderType | `HTML` | 本通道自带默认值，不继承 `beans.render-type` |
+| `render-type` | RenderType | `HTML2` | 产物格式，默认 HTML2 |
 | `analysis-timeout-millis` | int | `3000` | 未配置也用安全默认 3000ms（请求线程同步分析，防卡死线程池） |
 
 其余分析项（`common-*`、`analyze-static-field`、`max-depth`、`max-node-count`、`analysis-mode`、
@@ -571,13 +573,13 @@ cn:
 
 | 现象 | 原因与处理 |
 |---|---|
-| 配了 `beans.enable=true` 但访问不到页面 | HTTP 服务是独立开关，还要配 `server.enable=true`；启动日志里有实际地址，端口被占用时只告警不报错 |
+| 配了 `beans.enable=true` 但访问不到页面 | HTTP 服务是独立开关，还要配 `server.enable=true`；启动日志里有实际地址。端口被占用会让宿主启动失败，异常里带冲突端口与可选做法 |
 | 开了 `beans.enable` 但目录里一个产物都没有 | 若同时没开 `server.enable`：`lazy=true`（默认）只在首次访问时分析，没有网页入口就不会分析；要落盘请配 `lazy=false` |
 | 访问 `/beans` 看到「beans 通道未启用」 | 只开了 `server.enable`，还得开 `beans.enable`（两个开关管不同的事） |
 | 开了 `interceptor.enable=true` 但一个产物都没有 | `interceptor.active` 默认关闭，需显式配 `true`（或到管理页点开）；启动日志会有一行提示 |
 | 报告里展开的全是 Spring / Netty 内部对象 | `common-exclude-packages` 写成了 `[]`（显式清空，默认排除包一并失效），删掉该键或留空即恢复默认 |
 | `addAnalyzingClass("com.x.Y")` 没反应 | 类名找不到时默认静默跳过，确认类名与 `classLoader`；需要报错就开 `setThrowExceptionWhenStringClassNotFound(true)` |
-| 页面里 `password` 之类仍是明文 | `mask-sensitive-values` 被关掉，或字段名不含 `password/token/secret/credential/apikey/authorization` 等子串（按名匹配，不是完备清单） |
+| 页面里 `password` 之类仍是明文 | `mask-sensitive-values` 被关掉，或字段名不含 `password/passwd/pwd/token/secret/credential/apikey/api_key/authorization` 等子串（按名匹配，不是完备清单） |
 | 分析跑很久或产物巨大 | 调小 `max-depth` / `max-node-count`，或设 `analysis-timeout-millis`；集合用 `collections-analyzing-count` 限制 |
 | 想让 `java.` / `javax.` 下的类也展开 | 排除包是运行级与全局级**叠加**，`common-exclude-packages` 删不掉默认规则；改用 `common-include-packages` 指定包（判定在全局 exclude 之前） |
 | `PUML_HTML` / `MERMAID_HTML` 打开后是空白或提示「未找到 xxx.js」 | 产物与同名 js 必须放在**同一目录**（移动产物时要把 js 一起带走）；也可从 jar 的 `analysis/js/` 里复制过去 |
@@ -603,8 +605,10 @@ cn:
 - 报告以明文写入输出目录（默认 `用户主目录/cn.lizl.project.tool.analysis-result`），无加密、无访问控制——
   目录权限由操作系统决定
 - 报告包含对象的**字段值**：业务 DTO、请求参数、甚至凭证类字段都可能被完整展开
-- **敏感值脱敏默认开启**（`mask-sensitive-values=true`）：字段名含 `password`、`token`、`secret`、
-  `credential`、`apikey`、`authorization` 等子串时值渲染为 `***`（只挡值不挡结构）。这是按字段**名**的
+- `add-to-string-field`（默认关闭）生成的 `[toString()]` 是**整对象字符串**，不参与按字段名的脱敏；
+  开启脱敏时，含 `password`/`token` 等字段的对象不会生成该字段，避免凭证借这一行明文落盘
+- **敏感值脱敏默认开启**（`mask-sensitive-values=true`）：字段名含 `password`、`passwd`、`pwd`、`token`、
+  `secret`、`credential`、`apikey`、`api_key`、`authorization` 等子串时值渲染为 `***`（只挡值不挡结构）。这是按字段**名**的
   防御默认值，**不是完备清单**——密码放在任何非常规命名字段里仍会明文输出，不能因此放松对输出目录的管控
 
 **请求拦截器通道**

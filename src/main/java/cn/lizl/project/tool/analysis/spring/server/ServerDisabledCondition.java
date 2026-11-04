@@ -2,7 +2,6 @@ package cn.lizl.project.tool.analysis.spring.server;
 
 import org.springframework.context.annotation.Condition;
 import org.springframework.context.annotation.ConditionContext;
-import org.springframework.core.env.Environment;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 
 import javax.annotation.Nonnull;
@@ -16,15 +15,6 @@ public class ServerDisabledCondition implements Condition {
 
     @Override
     public boolean matches(ConditionContext context, @Nonnull AnnotatedTypeMetadata metadata) {
-        return !flag(context.getEnvironment(), ServerProperties.PREFIX + ".enable");
-    }
-
-    /** 与 {@link ServerEnabledCondition} 同口径：enable 取不到再看 enabled */
-    private static boolean flag(Environment environment, String key) {
-        Boolean value = environment.getProperty(key, Boolean.class);
-        if (value == null) {
-            value = environment.getProperty(key + "d", Boolean.class);
-        }
-        return Boolean.TRUE.equals(value);
+        return !EnableFlag.isEnabled(context.getEnvironment(), ServerProperties.PREFIX + ".enable");
     }
 }

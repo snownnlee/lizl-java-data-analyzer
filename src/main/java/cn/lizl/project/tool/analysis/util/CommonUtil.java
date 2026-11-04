@@ -11,12 +11,18 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * 通用工具：UTF-8 文件读写、文件名清洗、字段值转字符串（按上限截断）、敏感字段名判定。
+ *
+ * <p>放在叶子包 {@code util} 供 {@code core} 与 {@code http} 共用，本身不含分析语义。
+ */
 public class CommonUtil {
 
     private static final Logger log = Logger.getLogger(CommonUtil.class.getName());
@@ -68,6 +74,34 @@ public class CommonUtil {
         }
     }
 
+    /** 读尽输入流的全部字节（classpath 资源读取的共用实现；调用方负责关闭流） */
+    public static byte[] readAllBytes(InputStream inputStream) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream(32 * 1024);
+        byte[] chunk = new byte[8192];
+        int readLength;
+        while ((readLength = inputStream.read(chunk)) != -1) {
+            buffer.write(chunk, 0, readLength);
+        }
+        return buffer.toByteArray();
+    }
+
+    /**
+     * 把内容写到 {@code target}：必要时创建所在目录；先写临时文件再原子改名，
+     * 并发写同一目录不会留下半截文件（浏览器会把半截 js 当成语法错误）。
+     */
+    public static void writeFileAtomically(File directory, File target, byte[] content) throws IOException {
+        if (!directory.isDirectory() && !directory.mkdirs() && !directory.isDirectory()) {
+            throw new IOException("无法创建输出目录：" + directory);
+        }
+        Path temp = Files.createTempFile(directory.toPath(), target.getName() + ".", ".tmp");
+        try {
+            Files.write(temp, content);
+            Files.move(temp, target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+    }
+
     /** 成环时的占位：继续展开只会无限递归 */
     private static final String CYCLE_MARK = "(循环引用)";
 
@@ -99,7 +133,8 @@ public class CommonUtil {
         if (name == null || name.isEmpty()) {
             return false;
         }
-        String lower = name.toLowerCase();
+        // Locale.ROOT：土耳其语区域下 "APIKEY".toLowerCase() 会得到无点 ı，命中判定失效、凭证明文落盘
+        String lower = name.toLowerCase(Locale.ROOT);
         for (String part : SENSITIVE_NAME_PARTS) {
             if (lower.contains(part)) {
                 return true;

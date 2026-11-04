@@ -7,7 +7,6 @@ import com.sun.net.httpserver.HttpExchange;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -68,7 +67,8 @@ public final class BeansHttpServiceHandler implements HttpServiceHandler {
     /**
      * 容器表构造：容器注册名取自各 provider 的 {@link AnalysisProvider#getName()}。
      *
-     * <p>不传、传 {@code null} 或空数组时容器表为空（通道不可用，网页上给「未启用」提示而非 404）；
+     * <p>不传、传 {@code null} 或空数组时容器表为空，{@code isAvailable()} 返回 false：访问该组得到
+     * 404 + {@link #unavailableMessage()} 的开启指引（body 不是干巴巴的 not found）；
      * 数组里的 {@code null} 元素直接跳过，便于上游「按条件可能没有 provider」时透传。
      */
     public BeansHttpServiceHandler(AnalysisProvider... providers) {
@@ -203,7 +203,7 @@ public final class BeansHttpServiceHandler implements HttpServiceHandler {
     private void sendBeanResult(HttpExchange exchange, String rawBeanName) throws IOException {
         String beanName;
         try {
-            beanName = URLDecoder.decode(rawBeanName, StandardCharsets.UTF_8.name());
+            beanName = HttpRequests.decodePathSegment(rawBeanName);
         } catch (IllegalArgumentException e) {
             // 畸形 % 序列按未命中处理，而不是 500
             HttpResponses.text(exchange, 404, "not found");

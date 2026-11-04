@@ -3,6 +3,7 @@ package cn.lizl.project.tool.analysis.core;
 import cn.lizl.project.tool.analysis.JavaDataAnalyzer;
 import cn.lizl.project.tool.analysis.api.OutputContentReceiver;
 import cn.lizl.project.tool.analysis.api.RenderType;
+import com.example.fixture.ValidatorDtos;
 import cn.lizl.project.tool.analysis.support.TestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -162,6 +163,38 @@ class HtmlRenderEscapeTest {
         String puml = content.toString();
         assertFalse(puml.contains("plain-pass-123"), "PUML 报告不应落 password 明文");
         assertTrue(puml.contains("***"), "PUML 敏感字段应渲染为 *** 占位");
+    }
+
+    // ---------------- toString 字段与脱敏（toString 是整对象字符串，按字段名脱敏覆盖不到） ----------------
+
+    @Test
+    @DisplayName("开启 toString 字段时，含敏感字段的对象不生成该字段")
+    void shouldSkipToStringFieldWhenClassHasSensitiveField() {
+        StringBuilder content = new StringBuilder();
+
+        JavaDataAnalyzer.globalConfigurer().setAddToStringField(true).apply();
+        JavaDataAnalyzer.runningConfigurer()
+                .addAnalyzingObject(new ValidatorDtos.LeakyDto())
+                .run((OutputContentReceiver) content::append);
+
+        String html = content.toString();
+        assertFalse(html.contains("[toString()]"), "含敏感字段的对象不应生成 toString 字段");
+        assertFalse(html.contains("leak-pass-789"), "toString 拼出的凭证不该明文落盘");
+    }
+
+    @Test
+    @DisplayName("不含敏感字段的对象仍照常生成 toString 字段")
+    void shouldKeepToStringFieldWhenClassHasNoSensitiveField() {
+        StringBuilder content = new StringBuilder();
+
+        JavaDataAnalyzer.globalConfigurer().setAddToStringField(true).apply();
+        JavaDataAnalyzer.runningConfigurer()
+                .addAnalyzingObject(new ValidatorDtos.PlainDto())
+                .run((OutputContentReceiver) content::append);
+
+        String html = content.toString();
+        assertTrue(html.contains("[toString()]"), "普通对象应保留 toString 字段");
+        assertTrue(html.contains("PlainDto(name="), "普通对象的 toString 内容应照常展示");
     }
 
     @SuppressWarnings("unused")

@@ -33,6 +33,14 @@ import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * beans 通道的容器数据提供者：以 {@link BeanPostProcessor} 感知 Bean 初始化并登记单例引用，
+ * 由 {@code BeansHttpServiceHandler} 在首次访问时按需分析。
+ *
+ * <p>登记时机由 {@code beans.eager-to-analyze} 决定：初始化即登记，或等全部单例就绪后统一补扫
+ * （补扫用于覆盖早于本类创建、BPP 看不到的基础设施 Bean）。分析在单线程守护线程上串行执行
+ * （线程名 {@code lizl-java-data-analyzer}），不与业务争用线程池。
+ */
 public class SpringBeansAnalysisProvider
         implements EnvironmentAware, ApplicationContextAware, BeanFactoryAware,
         BeanPostProcessor, SmartInitializingSingleton, DisposableBean, AnalysisProvider {

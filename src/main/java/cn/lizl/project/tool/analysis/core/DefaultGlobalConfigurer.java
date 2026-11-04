@@ -8,6 +8,11 @@ import cn.lizl.project.tool.analysis.util.CommonUtil;
 import java.util.LinkedList;
 import java.util.List;
 
+/**
+ * {@link GlobalConfigurer} 的默认实现：setter 只把动作登记进队列，{@code apply()} 时按序执行。
+ *
+ * <p>实现细节，外部应通过 {@code JavaDataAnalyzer.globalConfigurer()} 获取。
+ */
 public final class DefaultGlobalConfigurer implements GlobalConfigurer {
 
     private final List<Runnable> actions = new LinkedList<>();

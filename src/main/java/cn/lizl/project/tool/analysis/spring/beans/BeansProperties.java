@@ -69,8 +69,8 @@ public class BeansProperties {
     /** 分析模式；未配置时沿用全局配置（不同于旧版：不再强制 ONLY_INSTANCE）。 */
     private AnalysisMode analysisMode;
 
-    /** 渲染类型；未配置时沿用全局配置。 */
-    private RenderType renderType;
+    /** 渲染类型，默认 HTML */
+    private RenderType renderType = RenderType.HTML;
 
     private Boolean shouldAnalyzeNullValue;
 

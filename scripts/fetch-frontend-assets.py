@@ -27,6 +27,9 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(ROOT, 'src', 'main', 'resources', 'analysis', 'js')
 
+# 注意：文件名只带上游版本号、不带内容指纹，但 HTTP 通道给一年强缓存（immutable）。
+# 因此改写规则变化（convert_esm_to_global / IIFE 包装）或任何内容改动，都必须同步升这里的版本号，
+# 否则老用户的浏览器会继续用一年前的旧脚本（HtmlTreeAssets 用内容指纹命名，没有这个问题）。
 MERMAID_VERSION = '11.17.2'
 PLANTUML_VERSION = '1.2026.8'
 

@@ -9,6 +9,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.logging.Logger;
 
+/**
+ * {@link RunningConfigurer} 的默认实现：持有待分析目标列表，{@code run} 时逐层建模并渲染。
+ *
+ * <p>实现细节，外部应通过 {@code JavaDataAnalyzer.runningConfigurer()} 获取。实例有状态
+ * （攒目标、{@code clear()} 清空），不要跨线程共享同一实例。
+ */
 public final class DefaultRunningConfigurer extends BaseRunningConfigurer {
 
     private final Logger log = Logger.getLogger(getClass().getName());

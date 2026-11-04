@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -185,19 +186,34 @@ public final class HttpAnalysisServer {
     /**
      * 可直接粘贴到浏览器的访问地址（索引页，已带上 token）。
      *
-     * <p>仅供使用方按需调用取地址用；日志一律走 {@link #logUrl(String)}，不落 token。
+     * <p>token 按 URL 编码后拼接，含 {@code + & # %}、空格等字符时也能直接复制打开。
+     * 仅供使用方按需调用取地址用；日志一律走 {@link #logUrl(String)}，不落 token。
      */
     public synchronized String getAccessUrl() {
         return accessUrl();
     }
 
     private String accessUrl() {
-        StringBuilder url = new StringBuilder("http://").append(displayHost()).append(':').append(getBoundPort())
-                .append(pathPrefix);
-        if (token != null) {
-            url.append("?token=").append(token);
+        return "http://" + displayHost() + ':' + getBoundPort() + pathPrefix + tokenQuerySuffix();
+    }
+
+    /**
+     * 索引页链接与 {@link #getAccessUrl()} 共用的 token 查询串（已 URL 编码）；未配置 token 时为空串。
+     *
+     * <p>必须编码：token 含 {@code +}、{@code &}、{@code #}、{@code %} 或空格时，原样拼接会被浏览器与服务端
+     * 的解码破坏（{@code +} 会被 {@link java.net.URLDecoder} 还原成空格，{@code #} 之后整段被当成片段，
+     * {@code &} 会被切成额外参数）——表现是复制出来的地址一律 401。
+     */
+    private String tokenQuerySuffix() {
+        if (token == null || token.isEmpty()) {
+            return "";
         }
-        return url.toString();
+        try {
+            return "?token=" + URLEncoder.encode(token, StandardCharsets.UTF_8.name());
+        } catch (UnsupportedEncodingException e) {
+            // UTF-8 是 JVM 必须支持的编码，理论不可达
+            throw new IllegalStateException("UTF-8 编码不可用", e);
+        }
     }
 
     /** 日志用的基础地址：不带 token（token 进访问日志/采集系统就是留了一份明文凭证） */
@@ -236,16 +252,27 @@ public final class HttpAnalysisServer {
         this.server = created;
         this.executor = createdExecutor;
         this.boundPort = created.getAddress().getPort();
-        log.info("JavaDataAnalyzer 独立 HTTP 服务已启动 ===> " + logUrl("/")
-                + (token == null ? "" : "（已启用 token 校验；完整带 token 的访问地址请用 getAccessUrl() 获取，不落日志）"));
-        for (HttpServiceHandler handler : handlers) {
-            if (handler.isAvailable()) {
-                String entryPath = handler.getEntryPath();
-                log.info("通道已挂载 ===> " + logUrl(entryPath == null ? "" : entryPath));
+        try {
+            log.info("JavaDataAnalyzer 独立 HTTP 服务已启动 ===> " + logUrl("/")
+                    + (token == null ? "" : "（已启用 token 校验；完整带 token 的访问地址请用 getAccessUrl() 获取，不落日志）"));
+            for (HttpServiceHandler handler : handlers) {
+                if (handler.isAvailable()) {
+                    String entryPath = handler.getEntryPath();
+                    log.info("通道已挂载 ===> " + logUrl(entryPath == null ? "" : entryPath));
+                }
             }
-        }
-        if (availableHandlers().isEmpty()) {
-            log.warning("HTTP 服务已启动，但没有任何可用通道（" + unavailableSummary() + "）");
+            if (availableHandlers().isEmpty()) {
+                log.warning("HTTP 服务已启动，但没有任何可用通道（" + unavailableSummary() + "）");
+            }
+        } catch (RuntimeException e) {
+            // 已在监听但收尾失败（处理器扩展点抛异常）：同样不留半启动实例，
+            // 让宿主的启动失败干净落地，而不是留下一个占着端口的孤儿服务
+            closeQuietly(created);
+            createdExecutor.shutdownNow();
+            this.server = null;
+            this.executor = null;
+            this.boundPort = 0;
+            throw e;
         }
         return this;
     }
@@ -366,10 +393,8 @@ public final class HttpAnalysisServer {
             HttpResponses.text(exchange, 404, message.toString());
             return;
         }
-        String query = token == null || token.isEmpty()
-                ? "" : "?token=" + URLEncoder.encode(token, StandardCharsets.UTF_8.name());
         HttpResponses.html(exchange, 200,
-                indexPageRenderer.render(handlers, available, pathPrefix, query));
+                indexPageRenderer.render(handlers, available, pathPrefix, tokenQuerySuffix()));
     }
 
     private List<HttpServiceHandler> availableHandlers() {
@@ -432,6 +457,9 @@ public final class HttpAnalysisServer {
      * 但带副作用的 GET（{@code ?rebuild=true} 强制重分析）会被跨站 {@code <img>} 驱动——
      * 浏览器跨站请求必带攻击页的 {@code Origin}/{@code Referer}，据此拦截；两者都缺视为
      * 非浏览器客户端（curl、服务间调用），放行。
+     *
+     * <p>比对 host 与端口：同机不同端口的页面（本地 dev server 等）同样算跨站。端口只在
+     * {@code Origin} 与 {@code Host} 都显式给出时比较，避免反向代理/默认端口场景误判。
      */
     private boolean isCrossSiteRequest(HttpExchange exchange) {
         String source = exchange.getRequestHeaders().getFirst(ORIGIN_HEADER);
@@ -442,13 +470,23 @@ public final class HttpAnalysisServer {
             return false;
         }
         try {
-            String originHost = URI.create(source.trim()).getHost();
+            URI origin = URI.create(source.trim());
+            String originHost = origin.getHost();
             if (originHost == null) {
                 return true;
             }
             String hostHeader = exchange.getRequestHeaders().getFirst(HOST_HEADER);
-            String requestHost = hostHeader == null ? "" : URI.create("http://" + hostHeader).getHost();
-            return requestHost.isEmpty() || !originHost.equalsIgnoreCase(requestHost);
+            if (hostHeader == null || hostHeader.trim().isEmpty()) {
+                return true;
+            }
+            URI target = URI.create("http://" + hostHeader.trim());
+            String requestHost = target.getHost();
+            if (requestHost == null || requestHost.isEmpty() || !originHost.equalsIgnoreCase(requestHost)) {
+                return true;
+            }
+            // 端口只在两侧都显式给出时比较：反向代理场景下 Host 可能不带端口，
+            // 用默认端口硬比会把正常的同站请求误判成跨站
+            return origin.getPort() > 0 && target.getPort() > 0 && origin.getPort() != target.getPort();
         } catch (IllegalArgumentException e) {
             return true;
         }

@@ -28,8 +28,9 @@ public final class JavaDataAnalyzer {
 
     /**
      * 新建单次分析配置器。深度、模式、渲染类型等在创建时快照当前全局配置（要在全局配置
-     * {@code apply()} 之后再调用）；全局包规则（common include/exclude）与 {@code classLoader}
-     * 则在分析时实时读取——改全局包规则对已创建实例同样生效，这是包过滤"四级叠加"语义所依赖的。
+     * {@code apply()} 之后再调用）；全局包规则（common include/exclude）在分析时实时读取——
+     * 改全局包规则对已创建实例同样生效，这是包过滤"四级叠加"语义所依赖的；
+     * {@code classLoader} 则在按类名添加目标时读取，改类加载器不影响已添加的目标。
      */
     public static RunningConfigurer runningConfigurer() {
         return new DefaultRunningConfigurer();
@@ -40,9 +41,11 @@ public final class JavaDataAnalyzer {
      * 用完调 {@code stop()} 释放端口。
      *
      * <p>便捷组装层：服务器本身只认识 {@code HttpServiceHandler}，beans 概念由这里与
-     * {@link BeansHttpServiceHandler} 承接。要挂多个聚合容器，对返回实例上的 beans 处理器无法再拿到——
-     * 这种场景请自行 {@code register(new BeansHttpServiceHandler(pa, pb))}（容器名取自
-     * {@code AnalysisProvider#getName()}）或在实例上 {@code addProvider}。
+     * {@link BeansHttpServiceHandler} 承接。要挂多个聚合容器、或在运行期增删容器，请自行创建并注册
+     * {@code new BeansHttpServiceHandler(pa, pb)}，再对该 handler 调
+     * {@link BeansHttpServiceHandler#addProvider(AnalysisProvider)} /
+     * {@link BeansHttpServiceHandler#removeProvider(String)}（容器名取自
+     * {@link AnalysisProvider#getName()}）；本方法返回的服务器上没有这类方法。
      *
      * <p>除 token / Basic 鉴权外没有其他访问控制，绑定地址建议限定在 127.0.0.1；确需对外暴露时请设置
      * {@link HttpAnalysisServer#setToken(String)} 或 {@link HttpAnalysisServer#setBasicAuth(String, String)}。

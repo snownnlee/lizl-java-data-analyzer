@@ -31,7 +31,7 @@ final class InterceptorControl implements InterceptorControlProvider {
 
     private volatile List<String> excludePaths = Collections.emptyList();
 
-    /** 运行时渲染类型：null 表示不覆盖（沿用全局配置），端点上显式改过后才非空 */
+    /** 运行时渲染类型，端点上可热切 */
     private volatile RenderType renderType;
 
     private final InterceptorProperties properties;
@@ -47,7 +47,7 @@ final class InterceptorControl implements InterceptorControlProvider {
         if (properties.getExcludePaths() != null) {
             this.excludePaths = Collections.unmodifiableList(sanitizePaths(properties.getExcludePaths(), "exclude-paths"));
         }
-        // 不回落任何其它通道：配了就用自己的，没配就保持 null（分析时由全局配置决定）
+        // 初始渲染类型从配置读取
         this.renderType = properties.getRenderType();
         this.writer = new InterceptorOutputWriter(
                 properties.getOutputQueueCapacity() != null ? properties.getOutputQueueCapacity() : InterceptorOutputWriter.DEFAULT_QUEUE_CAPACITY,
@@ -60,7 +60,7 @@ final class InterceptorControl implements InterceptorControlProvider {
         return active;
     }
 
-    /** 运行时渲染类型；null 表示本通道未指定，分析时沿用全局配置 */
+    /** 运行时渲染类型 */
     RenderType getRenderType() {
         return renderType;
     }

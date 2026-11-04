@@ -10,8 +10,6 @@ import com.sun.net.httpserver.HttpExchange;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -29,6 +27,9 @@ import java.util.Map;
  *
  * <p>本类属于拦截器通道（Spring 特性），因此放在 {@code spring.interceptor} 而<b>不是</b>通用 http 包；
  * 它只依赖 {@link HttpServiceHandler} 等通用契约与 {@link InterceptorControlProvider}，不直接依赖 Spring API。
+ *
+ * <p>写操作（POST）的跨站校验由 {@code HttpAnalysisServer} 统一承担：非 GET/HEAD 且带跨站
+ * {@code Origin}/{@code Referer} 的请求一律 403，本类不重复实现。
  */
 public final class InterceptorHttpServiceHandler implements HttpServiceHandler {
 
@@ -126,7 +127,7 @@ public final class InterceptorHttpServiceHandler implements HttpServiceHandler {
     private void sendOutput(HttpExchange exchange, String rawName) throws IOException {
         String name;
         try {
-            name = URLDecoder.decode(rawName, StandardCharsets.UTF_8.name());
+            name = HttpRequests.decodePathSegment(rawName);
         } catch (IllegalArgumentException e) {
             // 畸形 % 序列按未命中处理，而不是 500
             HttpResponses.text(exchange, 404, "not found");

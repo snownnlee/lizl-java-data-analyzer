@@ -2,13 +2,15 @@ package cn.lizl.project.tool.analysis.api;
 
 import java.awt.Desktop;
 import java.io.File;
+import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
  * 产物已写入文件后的回调。
  *
- * <p>回调在分析线程上同步执行，耗时操作会拖长 {@code run} 的返回时间；实现抛出的异常会原样传回调用方。
+ * <p>回调在调用 {@code run} 的线程上同步执行（库内不创建线程），耗时操作会拖长 {@code run} 的返回时间；
+ * 实现抛出的异常会原样传回调用方。
  * 回调时产物文件已写完并关闭。
  */
 public interface OutputFileReceiver {
@@ -16,11 +18,11 @@ public interface OutputFileReceiver {
     Logger log = Logger.getLogger(OutputFileReceiver.class.getName());
 
     /**
-     * 只打印产物绝对路径，不在 {@code run} 里抛异常。{@code run()} 无参版本的默认值。
+     * 只打印产物路径（规范化后的绝对路径），不在 {@code run} 里抛异常。{@code run()} 无参版本的默认值。
      */
     OutputFileReceiver DEFAULT = outputFile -> {
         try {
-            log.info("解析结果已输出到文件 --->  " + outputFile.getCanonicalPath());
+            log.info("分析结果已输出到文件 --->  " + outputFile.getCanonicalPath());
         } catch (Exception e) {
             log.log(Level.WARNING, "输出文件接收器 OutputFileReceiver.DEFAULT 处理发生异常！", e);
         }
@@ -35,11 +37,11 @@ public interface OutputFileReceiver {
     OutputFileReceiver OPEN_IN_WINDOWS_BROWSER = outputFile -> {
         try {
             String filePath = outputFile.getCanonicalPath();
-            if (!filePath.toLowerCase().endsWith("html")) {
+            if (!filePath.toLowerCase(Locale.ROOT).endsWith("html")) {
                 log.warning("非网页文件，请自行查找软件打开 ---> " + filePath);
                 return;
             }
-            if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+            if (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("windows")) {
                 log.info("即将打开输出文件 ---> " + filePath);
                 if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
                     log.warning("当前桌面环境不支持打开文件，请自行打开 ---> " + filePath);

@@ -52,11 +52,11 @@ cn:
         ignore-bean-name-pattern: '^(internal|temp)[-.].*'  # 按 Bean 名称正则忽略；String.matches 全串匹配（不是 find 子串）
         ignore-bean-packages:                       # 按类名包前缀忽略；类、父类、父接口都会比对
         output-root-dir: ./analysis-output/beans    # 本通道产物根目录；不配置用全局默认 ~/cn.lizl.project.tool.analysis-result
-        render-type: HTML                           # 产物格式：HTML / HTML2 / PUML / PUML_HTML / MERMAID / MERMAID_HTML；不配置沿用全局默认 HTML
+        render-type: HTML                           # 产物格式，不配置则默认 HTML
         # 包规则：与全局默认规则叠加（判定顺序 运行级 include → 运行级 exclude → 全局 include → 全局 exclude）
         #   只接受「非空且不含空白项」的数组：留空 / [] / 不写 三者等价（都表示本层不追加规则）
         #   空白项会被过滤（"" 作为前缀会匹配一切类名）
-        #   全局默认排除的 java./javax./jakarta./jdk./sun. 删不掉；要纳入它们用 include
+        #   全局默认排除的 com.sun./java./javax./jakarta./jdk./sun. 删不掉；要纳入它们用 include
         common-exclude-packages:                    # 追加的排除包（与全局默认叠加，只能加不能删）；下面整份清单是常用排除项
           - org.slf4j.                     # 常见日志门面/实现：字段全是静态 Logger，展开无信息量
           - org.apache.logging.log4j.
@@ -76,7 +76,7 @@ cn:
           - org.springframework.           # 框架设施：ApplicationContext 等字段会拖进整个容器对象图
         analyze-static-field: false                 # 是否分析静态字段；不配置用全局默认 false
         should-analyze-null-value: true             # 是否分析值为 null 的字段；默认 true（关掉可让报告只剩有值的字段）
-        max-depth: 7                                # 最大分析深度；默认 7；超过该深度只显示类型并提示「已达到最大解析深度」
+        max-depth: 7                                # 最大分析深度；默认 7；超过该深度只显示类型并提示「已达到最大分析深度」
         max-node-count: 2000                        # 单次分析最多新建节点数；默认 2000，≤0 不限制（防大对象图撑爆报告）
         analysis-timeout-millis: 0                  # 单次分析耗时上限（毫秒）；默认 0 = 不限制
         # 分析模式：
@@ -90,7 +90,7 @@ cn:
         default-to-expand: false                    # HTML 折叠树默认是否展开；默认 false（收起，只显示类标题）
         add-to-string-field: false                  # 是否给每个节点追加 toString 字段；默认 false（会真实调用一次 toString()，本库内部类除外）
         enable-collection-simple-view: true         # 集合是否按元素展开的紧凑视图；默认 true（false 会把集合当普通对象展开内部结构）
-        mask-sensitive-values: false                # 字段名命中 password/passwd/pwd/secret/token/credential/apikey/api_key/authorization 时值显示为 ***；默认 true
+        mask-sensitive-values: false                # 字段名命中 password/passwd/pwd/secret/token/credential/apikey/api_key/authorization 时值显示为 ***；此处演示关闭效果，默认与推荐值均为 true
 
       # ================= 请求拦截器通道 =================
       # 字段与 beans 段一一对应，但彼此独立：本段不读 beans 的任何值（连 render-type、输出目录也不回落）
@@ -102,7 +102,7 @@ cn:
         output-queue-capacity: 64                   # 异步写盘队列容量；默认 64，满载短等待后降级为调用线程同步落盘（产物不丢）
         output-retention: 3000                      # 每个日期目录各自保留的产物上限；默认 3000，≤0 不限制
         output-root-dir: ./analysis-output/interceptor  # 本通道产物根目录（其下按日期建子目录）；默认 ~/cn.lizl.project.tool.analysis-result/interceptor
-        render-type: HTML                           # 产物格式；本通道自带默认 HTML，不继承 beans 段的 render-type
+        render-type: HTML2                          # 产物格式，不配置则默认 HTML2
         # 包规则同上：非空才接受、空白项过滤、与全局规则叠加（不读 beans 段的规则）
         common-exclude-packages:                    # 追加的排除包，只作用于本通道产物
           - org.slf4j.                     # 常见日志门面/实现：字段全是静态 Logger，展开无信息量
@@ -131,4 +131,4 @@ cn:
         default-to-expand: false                    # 产物页默认展开；默认 false
         add-to-string-field: false                  # 是否给每个节点追加 toString 字段；默认 false（会真实调用一次 toString()，本库内部类除外）
         enable-collection-simple-view: true         # 集合是否按元素展开的紧凑视图；默认 true
-        mask-sensitive-values: true                 # 敏感字段值脱敏为 ***；默认 true（登录 DTO 等含凭证入参务必保持开启）
+        mask-sensitive-values: false                # 敏感字段值脱敏为 ***；默认 true（登录 DTO 等含凭证入参务必保持开启），此处演示关闭效果，默认与推荐值均为 true

@@ -88,7 +88,7 @@ class AnalysisExampleYamlTest {
         InterceptorProperties interceptor = bind(InterceptorProperties.PREFIX, InterceptorProperties.class);
 
         assertEquals(RenderType.HTML, beans.getRenderType());
-        assertEquals(RenderType.HTML, interceptor.getRenderType());
+        assertEquals(RenderType.HTML2, interceptor.getRenderType());
         assertEquals(Integer.valueOf(7), beans.getMaxDepth());
         assertEquals(Integer.valueOf(5), interceptor.getMaxDepth());
         assertFalse(beans.getMaxDepth().equals(interceptor.getMaxDepth()), "两段各自取值，不共享");

@@ -3,6 +3,7 @@ package cn.lizl.project.tool.analysis.http;
 import com.sun.net.httpserver.HttpExchange;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -42,6 +43,21 @@ public final class HttpRequests {
             }
         }
         return parameters;
+    }
+
+    /**
+     * 解码路径段。与 query 不同，路径里的 {@code +} 是字面量：不能按
+     * {@code application/x-www-form-urlencoded} 解成空格，否则 {@code /bean/a+b} 会查成 {@code a b}。
+     *
+     * @throws IllegalArgumentException 畸形 {@code %} 序列（调用方按未命中处理）
+     */
+    public static String decodePathSegment(String rawSegment) {
+        try {
+            return URLDecoder.decode(rawSegment.replace("+", "%2B"), StandardCharsets.UTF_8.name());
+        } catch (UnsupportedEncodingException e) {
+            // UTF-8 是 JVM 必须支持的编码，理论不可达
+            throw new IllegalStateException("UTF-8 编码不可用", e);
+        }
     }
 
     /** {@code rebuild=true} 表示本次请求强制重新分析 */

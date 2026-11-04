@@ -48,7 +48,7 @@ class ClassModel extends RunningConfigCapable {
             // 自身节点必须先建完再注销登记：反过来会让自引用的集合/映射找不到自己这个节点而重建成新节点，
             // 而新建走「按根建节点」分支时深度被写死为 1，深度上限失效，一路递归到栈溢出。
             fieldModels.add(new FieldModel.SelfFieldModel<>(runningConfig, sourceClassInstance, this));
-            if (runningConfig.addToStringField && CommonUtil.isNotProjectInnerClass(sourceClass)) {
+            if (shouldAddToStringField()) {
                 fieldModels.add(new FieldModel.ToStringFieldModel(runningConfig, sourceClassInstance.toString(), this));
             }
             classModelsManager.remove(this);
@@ -96,9 +96,21 @@ class ClassModel extends RunningConfigCapable {
                 }
             }
         }
-        if (sourceClassInstance != null && runningConfig.addToStringField && CommonUtil.isNotProjectInnerClass(sourceClass)) {
+        if (sourceClassInstance != null && shouldAddToStringField()) {
             fieldModels.add(new FieldModel.ToStringFieldModel(runningConfig, sourceClassInstance.toString(), this));
         }
+    }
+
+    /**
+     * 是否补一个 {@code toString} 字段：配置开启、非本库内部类，且（未开脱敏或该类不含敏感字段名）。
+     *
+     * <p>{@code toString()} 是整对象字符串，渲染层的按字段名脱敏对它无效，所以开了脱敏就跳过
+     * 含敏感字段的对象，避免凭证借这一行明文落盘。
+     */
+    private boolean shouldAddToStringField() {
+        return runningConfig.addToStringField
+                && CommonUtil.isNotProjectInnerClass(sourceClass)
+                && !(runningConfig.maskSensitiveValues && FieldModel.hasSensitiveField(sourceClass));
     }
 
     private boolean shouldAnalyze(Field field) {
@@ -126,29 +138,33 @@ class ClassModel extends RunningConfigCapable {
 
     /** 模块封装的提示文案：给出可直接加的启动参数，避免用户以为这是本工具的 bug */
     private String buildInaccessibleHint() {
-        return "提示：该类部分字段因模块封装无法反射读取（JDK 16+ 默认拒绝，属运行环境限制，非分析错误），"
-                + "字段本身仍会展示，只是没有值；如需读取可加启动参数 --add-opens "
-                + getModuleAndPackageName() + "=ALL-UNNAMED";
+        String moduleAndPackage = getModuleAndPackageName();
+        String base = "提示：该类部分字段因模块封装无法反射读取（JDK 16+ 默认拒绝，属运行环境限制，非分析错误），"
+                + "字段本身仍会展示，只是没有值";
+        if (moduleAndPackage == null) {
+            // JDK 8 没有模块系统，--add-opens 不存在；此时只能是安全管理器拒绝了反射
+            return base + "；当前运行环境无模块系统（JDK 8），请检查安全管理器是否拒绝了反射。";
+        }
+        return base + "；如需读取可加启动参数 --add-opens " + moduleAndPackage + "=ALL-UNNAMED";
     }
 
     /**
-     * 拼出 {@code 模块名/包名}，用于 {@code --add-opens}。JDK 8 没有模块系统，
-     * {@code Class.getModule()} 只能反射调用。
+     * 拼出 {@code 模块名/包名}，用于 {@code --add-opens}；没有模块系统（JDK 8）时返回 {@code null}。
+     *
+     * <p>未命名模块（classpath 应用）的 {@code Module#getName()} 返回 {@code null}，模块名要写
+     * {@code ALL-UNNAMED}——不能兜底成 {@code java.base}，否则参数指向的模块里根本没有这个类。
      */
     @SuppressWarnings("JavaReflectionMemberAccess")
     private String getModuleAndPackageName() {
         String packageName = sourceClass.getPackage() != null ? sourceClass.getPackage().getName() : "";
-        String moduleName = "java.base";
         try {
             Object module = Class.class.getMethod("getModule").invoke(sourceClass);
             Object name = module.getClass().getMethod("getName").invoke(module);
-            if (name != null) {
-                moduleName = String.valueOf(name);
-            }
+            return (name == null ? "ALL-UNNAMED" : String.valueOf(name)) + "/" + packageName;
         } catch (Throwable ignored) {
-            // JDK 8：没有模块，保持占位值
+            // JDK 8：Class#getModule 不存在
+            return null;
         }
-        return moduleName + "/" + packageName;
     }
 
     boolean shouldAnalyze(Class<?> clazz, boolean considerInstance) {
@@ -211,7 +227,7 @@ class ClassModel extends RunningConfigCapable {
             return new InfoClassModel(runningConfig, classModelsManager, buildLimitWarning(budgetWarning, clazz, clazzInstance), this.depth + 1);
         }
         if (reachedMaxDepth(nextDepth)) {
-            return new InfoClassModel(runningConfig, classModelsManager, buildLimitWarning("已达到最大解析深度" + runningConfig.maxDepth, clazz, clazzInstance), this.depth + 1);
+            return new InfoClassModel(runningConfig, classModelsManager, buildLimitWarning("已达到最大分析深度" + runningConfig.maxDepth, clazz, clazzInstance), this.depth + 1);
         }
         return new ClassModel(runningConfig, classModelsManager, clazz, clazzInstance, nextDepth);
     }

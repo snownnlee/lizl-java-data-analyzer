@@ -525,6 +525,27 @@ class FieldModel extends RunningConfigCapable {
         }
     }
 
+    /**
+     * 该类（含父类）是否声明了敏感字段名。{@code toString()} 输出的是整对象字符串，按字段名的
+     * 脱敏覆盖不到它，因此含敏感字段的对象不生成 toString 字段。
+     *
+     * <p>反射失败（安全管理器、链接错误）按「含敏感」处理：不能证明安全就不落明文。
+     */
+    static boolean hasSensitiveField(Class<?> clazz) {
+        try {
+            for (Class<?> current = clazz; current != null && current != Object.class; current = current.getSuperclass()) {
+                for (Field field : current.getDeclaredFields()) {
+                    if (CommonUtil.isSensitiveName(field.getName())) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } catch (Throwable throwable) {
+            return true;
+        }
+    }
+
     static class SelfFieldModel<T> extends FieldModel {
 
         public T __SELF__;

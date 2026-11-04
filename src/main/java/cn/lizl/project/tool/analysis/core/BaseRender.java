@@ -2,6 +2,7 @@ package cn.lizl.project.tool.analysis.core;
 
 import java.io.File;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -72,5 +73,19 @@ abstract class BaseRender extends RunningConfigCapable implements IRender {
         // 交互式 HTML（HTML / HTML2）的样式与脚本同样是同目录 sidecar，文件名带内容指纹
         HtmlTreeAssets.ensureReferenced(content, outputFile.getParentFile());
         return outputFile;
+    }
+
+    /**
+     * 简单视图内联值：拼接后按 {@code valueDisplayLengthLimit} 截断（{@code <=0} 不截）。
+     *
+     * <p>三个渲染器共用：HTML / HTML2 写进文本与骨架，PUML 系写进字段行。调用方保证 {@code values} 非空。
+     */
+    protected String simpleViewInlineText(List<String> values) {
+        String joined = String.join(", ", values);
+        int limit = runningConfig.valueDisplayLengthLimit;
+        if (limit > 0 && joined.length() > limit) {
+            return joined.substring(0, limit) + "...";
+        }
+        return joined;
     }
 }

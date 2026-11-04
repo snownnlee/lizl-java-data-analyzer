@@ -236,11 +236,7 @@ class HtmlRender2 extends BaseRender {
         }
         List<String> simpleViewValues = fieldModel.simpleViewElementValues();
         if (simpleViewValues != null && !simpleViewValues.isEmpty()) {
-            String joined = String.join(", ", simpleViewValues);
-            int limit = runningConfig.valueDisplayLengthLimit;
-            if (limit > 0 && joined.length() > limit) {
-                joined = joined.substring(0, limit) + "…";
-            }
+            String joined = simpleViewInlineText(simpleViewValues);
             skeleton.append(",\"inline\":");
             appendString(joined, skeleton);
         }

@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -116,14 +117,16 @@ final class InterceptorOutputWriter {
     /** 认得的产物扩展名（含复合扩展名，按 endsWith 匹配） */
     private static final String[] PRODUCT_EXTENSIONS = {".puml.html", ".mmd.html", ".html", ".puml", ".mmd"};
 
-    /**
-     * 启动时扫描输出根目录下的日期目录（8 位数字命名），把磁盘上已有的产物回填登记表——
-     * 登记表只在内存，不回填的话进程重启后列表为空、磁盘文件成了孤儿。非日期目录（如 bean 通道的
-     * 时间戳目录）不扫；随后按保留策略对每个目录独立收缩。
-     * <p>
-     * 日期目录名（8 位数字）；启动回填逐目录判断用 */
+    /** 日期目录名（8 位数字）；启动回填与保留策略都按它识别目录。 */
     private static final Pattern DATE_DIR_NAME = Pattern.compile("\\d{8}");
 
+    /**
+     * 启动时扫描输出根目录下的日期目录，把磁盘上已有的产物回填登记表——登记表只在内存，
+     * 不回填的话进程重启后列表为空、磁盘文件成了孤儿；随后按保留策略对每个日期目录独立收缩。
+     * 非日期命名的目录不扫。
+     *
+     * @param rootDir 本通道产物根目录（其下按日期建子目录）
+     */
     void seedFromDisk(String rootDir) {
         File root = new File(rootDir);
         File[] dateDirs = root.listFiles(File::isDirectory);
@@ -159,7 +162,7 @@ final class InterceptorOutputWriter {
     }
 
     private static boolean isProductFile(String fileName) {
-        String lower = fileName.toLowerCase();
+        String lower = fileName.toLowerCase(Locale.ROOT);
         for (String extension : PRODUCT_EXTENSIONS) {
             if (lower.endsWith(extension)) {
                 return true;

@@ -55,8 +55,10 @@ final class InterceptorRequestAnalyzer {
     }
 
     /**
-     * @param handler 简要描述（类名#方法名），只用于摘要日志
-     * @param args    参数下标 → 已解析的参数值，来自捕获包装器
+     * @param handler    简要描述（类名#方法名），只用于摘要日志
+     * @param requestUri 请求路径：决定产物文件名摘要与日志内容；路径过滤已由调用方按
+     *                   include-paths / exclude-paths 判完，本方法不再判
+     * @param args       参数下标 → 已解析的参数值，来自捕获包装器
      */
     void analyze(String handler, String requestUri, Map<Integer, Object> args) {
         try {
@@ -90,7 +92,6 @@ final class InterceptorRequestAnalyzer {
      * <p>不再引用任何其它通道的配置——本方法的结果只取决于 {@code InterceptorProperties} 与全局默认。
      * 包规则在 {@link InterceptorProperties#newRunningConfigurer()} 里已按「非空 → 追加合并」处理。
      */
-    /** 包私有供测试读取配置结果；生产路径只有 analyze 使用 */
     RunningConfigurer buildConfigurer() {
         RunningConfigurer configurer = properties.newRunningConfigurer();
         // 渲染类型以控制器的运行时值为准（端点可热切），它初始值就是 interceptor.render-type

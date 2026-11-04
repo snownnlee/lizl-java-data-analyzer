@@ -18,8 +18,10 @@ import java.util.logging.Logger;
 /**
  * beans 通道的自动配置：只装配 bean 采集与它自己的 HTTP 处理器，不碰 HTTP 服务本身、不碰拦截器。
  *
- * <p>开关键 {@code cn.lizl.java-data-analyzer.beans.enable}，默认关闭（用 Binder 绑定而不是
- * {@code @ConditionalOnProperty}：后者按属性名精确匹配、不做松散绑定）。
+ * <p>开关键 {@code cn.lizl.java-data-analyzer.beans.enable}，默认关闭。判定走
+ * {@link BeansEnabledCondition} 直接读 {@code Environment}，不用 {@code @ConditionalOnProperty}：
+ * 后者一次给多个属性名时要求<b>全部</b>满足，做不到「{@code enable} / {@code enabled} 任一即可」。
+ * 注意只认这两个精确键，不做松散绑定——写别的变体一律静默不生效。
  *
  * <p>本类同时向容器提供一个 {@link HttpServiceHandler}，由 {@code ServerAutoConfiguration} 统一收集挂载——
  * 服务器那边不认识"beans"这个概念。
@@ -67,7 +69,7 @@ public class BeansAutoConfiguration {
     @Conditional({BeansEnabledCondition.class, ServerDisabledCondition.class})
     public SmartInitializingSingleton beansServerDisabledReporter() {
         return () -> LOG.warning("bean 采集通道已启用，但 HTTP 服务未开启（" + ServerProperties.PREFIX + ".enable=false）："
-                + "不会有任何产物。原因：lazy=true（默认）时只在首次访问 /bean/{name} 时才分析，"
+                + "按当前默认配置（lazy=true）不会有任何产物：只在首次访问 /bean/{name} 时才分析，"
                 + "而网页入口正是唯一入口。需要落盘请配置 " + BeansProperties.PREFIX + ".lazy=false，"
                 + "或配置 " + ServerProperties.PREFIX + ".enable=true 打开网页入口");
     }

@@ -1,9 +1,9 @@
 package cn.lizl.project.tool.analysis.http;
 
+import cn.lizl.project.tool.analysis.util.CommonUtil;
 import cn.lizl.project.tool.analysis.util.HtmlTemplates;
 import cn.lizl.project.tool.analysis.util.ResourcePaths;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -32,13 +32,7 @@ public final class ClasspathResource {
             if (inputStream == null) {
                 throw new IOException("classpath 中找不到 " + name);
             }
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream(32 * 1024);
-            byte[] chunk = new byte[8192];
-            int read;
-            while ((read = inputStream.read(chunk)) != -1) {
-                buffer.write(chunk, 0, read);
-            }
-            return buffer.toByteArray();
+            return CommonUtil.readAllBytes(inputStream);
         }
     }
 

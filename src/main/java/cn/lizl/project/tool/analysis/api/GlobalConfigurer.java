@@ -38,7 +38,8 @@ public interface GlobalConfigurer extends GeneralConfigurer<GlobalConfigurer> {
     GlobalConfigurer setClassLoader(ClassLoader classLoader);
 
     /**
-     * 应用此前登记的全部设置。调用后队列清空，重复调用不会重复执行。
+     * 应用此前登记的全部设置。成功时队列清空，重复调用不会重复执行；中途有动作抛异常时队列
+     * 不清空（见类注释），修复后再次调用会重放全部已登记动作。
      */
     void apply();
 }

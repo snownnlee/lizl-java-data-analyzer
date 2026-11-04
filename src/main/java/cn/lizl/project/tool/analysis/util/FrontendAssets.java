@@ -1,13 +1,9 @@
 package cn.lizl.project.tool.analysis.util;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -18,6 +14,11 @@ import java.util.logging.Logger;
  * 双击打开（{@code file://}）与断网都能看图，多个产物之间还能共用同一份文件。
  *
  * <p>引擎来源与许可见同目录的 {@code SOURCES.txt}，由 {@code scripts/fetch-frontend-assets.py} 生成。
+ *
+ * <p><b>缓存不变量</b>：HTTP 通道对引擎文件给一年强缓存（immutable），而文件名只带<b>上游版本号</b>、
+ * 不带内容指纹——因此改写引擎内容（含 {@code scripts/fetch-frontend-assets.py} 的改写步骤）时，
+ * 必须同步更新文件名里的版本号；否则老用户的浏览器会继续用一年前的旧脚本。
+ * {@code HtmlTreeAssets} 用真·内容指纹命名，没有这个问题。
  */
 public final class FrontendAssets {
 
@@ -63,13 +64,7 @@ public final class FrontendAssets {
             if (in == null) {
                 throw new IllegalStateException("classpath 上找不到前端引擎：" + path);
             }
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream(64 * 1024);
-            byte[] chunk = new byte[8192];
-            int read;
-            while ((read = in.read(chunk)) != -1) {
-                buffer.write(chunk, 0, read);
-            }
-            byte[] content = buffer.toByteArray();
+            byte[] content = CommonUtil.readAllBytes(in);
             CACHE.put(fileName, content);
             return content;
         } catch (IOException e) {
@@ -104,18 +99,7 @@ public final class FrontendAssets {
             return;
         }
         try {
-            if (!directory.isDirectory() && !directory.mkdirs() && !directory.isDirectory()) {
-                throw new IOException("无法创建输出目录：" + directory);
-            }
-            byte[] content = read(fileName);
-            // 先写临时文件再原子改名：并发写同一目录时不会留下半截 js（浏览器会把它当语法错误）
-            Path temp = Files.createTempFile(directory.toPath(), fileName + ".", ".tmp");
-            try {
-                Files.write(temp, content);
-                Files.move(temp, target.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            } finally {
-                Files.deleteIfExists(temp);
-            }
+            CommonUtil.writeFileAtomically(directory, target, read(fileName));
         } catch (IOException | RuntimeException e) {
             LOG.log(Level.WARNING, "前端引擎 " + fileName + " 未能写入 " + directory
                     + "，该目录下的 HTML 产物将无法渲染图形（可手工从 jar 的 " + CLASSPATH_DIR

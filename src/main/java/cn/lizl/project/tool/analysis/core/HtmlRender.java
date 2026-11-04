@@ -184,7 +184,10 @@ class HtmlRender extends BaseRender {
     /**
      * 链接类（该对象/类型已在别处展开）的标题，点击后跳到目标类。
      *
-     * <p>onclick 只调 {@code setNaviHash}：模板里的导航函数没有形参、只读当前 hash，直接传目标 id 会被丢弃。
+     * <p>onclick 必须把目标 id 传给 {@code setNaviHash}：它先用 id 写地址栏 hash
+     * （{@code pushState}，留下可后退的历史记录），再调 {@code naviToTarget()} 从 hash
+     * 读回 id、沿祖先链展开并高亮。只调 {@code naviToTarget()} 不会有任何导航
+     * （hash 没变），直接操作 DOM 则会丢掉历史记录。
      */
     private void renderLinkClassGenericName(String[] classGenericName, String linkClassId, String originClassId, boolean isSuper, StringBuilder result) {
         result.append("<a class='").append(Tokens.LINK_CONTAINER)
@@ -251,8 +254,8 @@ class HtmlRender extends BaseRender {
                 .append("' href='javascript:' onclick='").append(Tokens.FN_TOGGLE)
                 .append("(this, event)' style='cursor:").append(cursor).append(';')
                 .append(visible ? "" : "display:none;")
-                .append("' data-classId='").append(classId)
-                .append("' data-name='").append(controlName).append('\'')
+                .append("' ").append(Tokens.ATTR_DATA_CLASS_ID).append("='").append(classId)
+                .append("' ").append(Tokens.ATTR_DATA_NAME).append("='").append(controlName).append('\'')
                 .append('>').append(text).append("</a>");
     }
 
@@ -295,11 +298,7 @@ class HtmlRender extends BaseRender {
                 }
                 // 简单视图下被包排除的集合元素值内联展示，口径与 PUML 的 [size] = [v1, v2] 一致
                 if (simpleViewValues != null && !simpleViewValues.isEmpty()) {
-                    String joined = String.join(", ", simpleViewValues);
-                    int limit = runningConfig.valueDisplayLengthLimit;
-                    if (limit > 0 && joined.length() > limit) {
-                        joined = joined.substring(0, limit) + "…";
-                    }
+                    String joined = simpleViewInlineText(simpleViewValues);
                     result.append("<span class='").append(Tokens.FIELD_INFO_EQUAL).append("'>=")
                             .append("</span>");
                     result.append("<span class='").append(Tokens.FIELD_INFO_VALUE).append("'>[")

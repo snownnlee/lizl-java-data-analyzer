@@ -91,6 +91,9 @@ public interface GeneralConfigurer<T extends GeneralConfigurer<T>> {
     /**
      * 是否为每个节点补一个 {@code toString} 字段，默认 {@code false}。每节点会真实调用一次
      * {@code toString()}，目标类该方法有副作用或较慢时保持关闭。
+     *
+     * <p>{@code toString()} 输出是整对象字符串，不参与按字段名的脱敏；因此开启脱敏
+     * （{@code maskSensitiveValues=true}，默认）时，声明了 password/token 等字段的对象不生成该字段。
      */
     T setAddToStringField(boolean value);
 

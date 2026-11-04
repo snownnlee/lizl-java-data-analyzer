@@ -4,10 +4,13 @@ package cn.lizl.project.tool.analysis.api;
  * 单次分析任务的配置与目标，通过 {@code JavaDataAnalyzer.runningConfigurer()} 获取。
  *
  * <p>深度、模式、渲染类型等在创建时对全局配置做快照，之后改全局配置不影响已创建的实例；
- * 要重新读取全局值请调 {@link #reset()}。例外：全局包规则（common include/exclude）与
- * {@code classLoader} 在分析时实时读取 {@code GlobalConfig}，改全局包规则对已创建实例同样生效。
+ * 要重新读取全局值请调 {@link #reset()}。例外：全局包规则（common include/exclude）在分析时
+ * 实时读取 {@code GlobalConfig}，改全局包规则对已创建实例同样生效；{@code classLoader} 则在
+ * {@link #addAnalyzingClass(String)} 调用那一刻取值，须先 {@code setClassLoader} + {@code apply()}
+ * 再添加目标。
  *
- * <p>实例可反复 {@code run}，配置与目标都保留，只有 {@link #clear()} 与 {@link #reset(boolean)} 会清掉目标。
+ * <p>实例可反复 {@code run}，配置与目标都保留；只有 {@link #clear()} 与 {@code reset(true)} 会清掉目标
+ * （{@link #reset(boolean)} 传 {@code false} 时只退配置、不动目标）。
  */
 public interface RunningConfigurer extends GeneralConfigurer<RunningConfigurer> {
 
@@ -47,12 +50,13 @@ public interface RunningConfigurer extends GeneralConfigurer<RunningConfigurer> 
     /**
      * 执行分析并把产物写入文件，成功后回调。目标为空时不产出文件、也不回调。
      *
-     * <p>回调在分析线程上同步执行，耗时操作请自行异步化。
+     * <p>回调在调用 {@code run} 的线程上同步执行（库内不创建线程），耗时操作请自行异步化。
      */
     RunningConfigurer run(OutputFileReceiver outputFileReceiver);
 
     /**
-     * 执行分析并只把渲染结果交给回调，不写文件。目标为空时不回调，回调同样在分析线程上同步执行。
+     * 执行分析并只把渲染结果交给回调，不写文件。目标为空时不回调，回调同样在调用 {@code run} 的线程上
+     * 同步执行。
      */
     RunningConfigurer run(OutputContentReceiver outputContentReceiver);
 
@@ -76,7 +80,8 @@ public interface RunningConfigurer extends GeneralConfigurer<RunningConfigurer> 
     }
 
     /**
-     * 配置项退回调用这一刻的全局值，已设置的文件名一并清掉（恢复为自动命名）。
+     * 配置项退回调用这一刻的全局值：{@code outputRootDir} 与各项分析参数回到全局值，本层追加的包规则
+     * 清空，已设置的文件名一并清掉（恢复为自动命名）。
      *
      * @param clear 是否同时清空已添加的分析目标
      */

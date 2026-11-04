@@ -1,7 +1,6 @@
 package cn.lizl.project.tool.analysis.core;
 
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -20,9 +19,6 @@ class PumlRender extends BasePumlRender {
 
     /** 回边（指向已出现节点）的虚线颜色：边框蓝的暗化版，既与主色同源又退到背景之后 */
     private static final String COLOR_BACK_LINK = "#3a5a99";
-
-    /** 字段因超出解析深度而未能展开时的行尾标记 */
-    private static final String MARK_DEPTH_LIMIT = "⚠ 深度受限";
 
     PumlRender(RunningConfig runningConfig) {
         super(runningConfig, ".puml");
@@ -150,26 +146,13 @@ class PumlRender extends BasePumlRender {
             if (fieldModel.sourceField == null) {
                 continue;
             }
-            boolean renderValue = fieldModel.fieldTypeClassesModels.isEmpty()
-                    || fieldModel.sourceField.getType().isEnum()
-                    || fieldModel.sourceFieldValue instanceof Enum;
-            String line = buildFieldLine(fieldModel, renderValue);
+            String line = buildFieldLine(fieldModel, renderFieldValueDirectly(fieldModel));
             if (isDepthLimited(fieldModel)) {
                 line += " " + colorize(COLOR_WARN, MARK_DEPTH_LIMIT);
             }
             context.addMember(bodyOwnerId, cleanText(fieldModel.getFieldName()));
             body.appendRow(line);
         }
-    }
-
-    /** 该字段是否有目标因超出解析深度而未能展开。 */
-    private static boolean isDepthLimited(FieldModel fieldModel) {
-        for (ClassModel fieldTypeClassModel : fieldModel.fieldTypeClassesModels) {
-            if (fieldTypeClassModel instanceof ClassModel.InfoClassModel) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** 父类字段内联在子类框内，用段落标题标注起点；父类没有独立节点，因此不带编号。 */
@@ -313,54 +296,22 @@ class PumlRender extends BasePumlRender {
 
         private final StringBuilder links = new StringBuilder(128);
 
-        /** 类型 → 实例 → 出现序号；按遍历顺序编号，保证同一输入多次渲染结果稳定可 diff */
-        private final Map<Class<?>, Map<Object, Integer>> instanceOrdinals = new HashMap<>();
+        private final InstanceOrdinals instanceOrdinals;
+
+        private final DeclarationOrder declarationOrder = new DeclarationOrder();
 
         /** 类别名 → 已写入该类体的成员名；只有命中的成员才能作为边的起点 */
         private final Map<String, Set<String>> emittedMembers = new HashMap<>();
-
-        /** 类别名 → 声明顺序；用于区分「向后展开」与「回指已出现的节点」 */
-        private final Map<String, Integer> declarationOrder = new HashMap<>();
 
         /** 已输出的边（from|member|to|label）；折叠包装层后同一字段可能重复指向同一目标 */
         private final Set<String> emittedLinks = new LinkedHashSet<>();
 
         RenderContext(ClassModel[] rootClassModels) {
-            for (ClassModel rootClassModel : rootClassModels) {
-                collectInstances(rootClassModel);
-            }
+            this.instanceOrdinals = new InstanceOrdinals(rootClassModels);
         }
 
-        private void collectInstances(ClassModel classModel) {
-            if (classModel == null || classModel instanceof ClassModel.LinkClassModel) {
-                return;
-            }
-            if (classModel.sourceClass != null && classModel.sourceClassInstance != null) {
-                Map<Object, Integer> ordinals = instanceOrdinals
-                        .computeIfAbsent(classModel.sourceClass, key -> new IdentityHashMap<>());
-                if (!ordinals.containsKey(classModel.sourceClassInstance)) {
-                    ordinals.put(classModel.sourceClassInstance, ordinals.size() + 1);
-                }
-            }
-            for (FieldModel fieldModel : classModel.fieldModels) {
-                for (ClassModel fieldTypeClassModel : fieldModel.fieldTypeClassesModels) {
-                    collectInstances(fieldTypeClassModel);
-                }
-            }
-            collectInstances(classModel.superClassModel);
-        }
-
-        /** 同类型多实例时返回 {@code @1} / {@code @2} 这类区分后缀，否则返回 null。 */
         String instanceSuffix(ClassModel classModel) {
-            if (classModel.sourceClass == null || classModel.sourceClassInstance == null) {
-                return null;
-            }
-            Map<Object, Integer> ordinals = instanceOrdinals.get(classModel.sourceClass);
-            if (ordinals == null || ordinals.size() <= 1) {
-                return null;
-            }
-            Integer ordinal = ordinals.get(classModel.sourceClassInstance);
-            return ordinal == null ? null : "@" + ordinal;
+            return instanceOrdinals.instanceSuffix(classModel);
         }
 
         void addMember(String classAlias, String memberName) {
@@ -373,16 +324,11 @@ class PumlRender extends BasePumlRender {
         }
 
         void markDeclared(String classAlias) {
-            if (!declarationOrder.containsKey(classAlias)) {
-                declarationOrder.put(classAlias, declarationOrder.size());
-            }
+            declarationOrder.markDeclared(classAlias);
         }
 
-        /** 目标比源更早声明则为环引用，画虚线；任一方未声明时按实线处理。 */
         boolean isBackEdge(String fromAlias, String targetAlias) {
-            Integer from = declarationOrder.get(fromAlias);
-            Integer target = declarationOrder.get(targetAlias);
-            return from != null && target != null && target < from;
+            return declarationOrder.isBackEdge(fromAlias, targetAlias);
         }
 
         /** @return 是否是一条新边（重复边直接丢弃，避免折叠后同一关系画出多条） */

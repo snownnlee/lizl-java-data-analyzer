@@ -1,10 +1,7 @@
 package cn.lizl.project.tool.analysis.core;
 
 import java.lang.reflect.Modifier;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Set;
 
 import cn.lizl.project.tool.analysis.util.CommonUtil;
@@ -17,8 +14,6 @@ import static cn.lizl.project.tool.analysis.util.CommonUtil.appendLine;
  * 没有 PlantUML 的成员级锚点与分段着色，连线只能落在类框边缘。
  */
 class MermaidRender extends BasePumlRender {
-
-    private static final String MARK_DEPTH_LIMIT = "⚠ 深度受限";
 
     MermaidRender(RunningConfig runningConfig) {
         super(runningConfig, ".mmd");
@@ -117,24 +112,12 @@ class MermaidRender extends BasePumlRender {
             if (fieldModel.sourceField == null) {
                 continue;
             }
-            boolean renderValue = fieldModel.fieldTypeClassesModels.isEmpty()
-                    || fieldModel.sourceField.getType().isEnum()
-                    || fieldModel.sourceFieldValue instanceof Enum;
-            String line = mermaidFieldLine(fieldModel, renderValue);
+            String line = mermaidFieldLine(fieldModel, renderFieldValueDirectly(fieldModel));
             if (isDepthLimited(fieldModel)) {
                 line += " " + MARK_DEPTH_LIMIT;
             }
             body.appendRow(line);
         }
-    }
-
-    private static boolean isDepthLimited(FieldModel fieldModel) {
-        for (ClassModel fieldTypeClassModel : fieldModel.fieldTypeClassesModels) {
-            if (fieldTypeClassModel instanceof ClassModel.InfoClassModel) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** 父类没有独立节点，字段内联进子类框，用标注行标起点。 */
@@ -223,7 +206,13 @@ class MermaidRender extends BasePumlRender {
         return escapeMermaid(result.toString());
     }
 
-    /** {@code [static] name : Type [final] [= value | [size]]}，口径与 PUML 字段行一致。 */
+    /**
+     * {@code [static] name : Type [final] [= value | [size]]}，与 PUML 字段行同构。
+     *
+     * <p>已知差异：{@code renderValue=false} 时 PUML 还会补一段简单视图元素值
+     * {@code = [v1, v2, ...]}（见 {@link BasePumlRender} 的 {@code appendSimpleViewValues}），
+     * 本渲染器只给 {@code [size]}——被包排除规则挡掉的集合元素值在 Mermaid 产物里看不到。
+     */
     private String mermaidFieldLine(FieldModel fieldModel, boolean renderValue) {
         StringBuilder line = new StringBuilder(64);
         int modifiers = fieldModel.sourceField.getModifiers();
@@ -313,62 +302,27 @@ class MermaidRender extends BasePumlRender {
 
         private final StringBuilder links = new StringBuilder(128);
 
-        /** 类型 → 实例 → 出现序号，用于生成同类型多实例的 @1 / @2 后缀 */
-        private final Map<Class<?>, Map<Object, Integer>> instanceOrdinals = new HashMap<>();
+        private final InstanceOrdinals instanceOrdinals;
 
-        /** 类别名 → 声明顺序，目标更早声明即为回边 */
-        private final Map<String, Integer> declarationOrder = new HashMap<>();
+        private final DeclarationOrder declarationOrder = new DeclarationOrder();
 
         /** 已输出的边（from|to|label），折叠包装层后同一关系可能重复出现 */
         private final Set<String> emittedLinks = new LinkedHashSet<>();
 
         RenderContext(ClassModel[] rootClassModels) {
-            for (ClassModel rootClassModel : rootClassModels) {
-                collectInstances(rootClassModel);
-            }
-        }
-
-        private void collectInstances(ClassModel classModel) {
-            if (classModel == null || classModel instanceof ClassModel.LinkClassModel) {
-                return;
-            }
-            if (classModel.sourceClass != null && classModel.sourceClassInstance != null) {
-                Map<Object, Integer> ordinals = instanceOrdinals
-                        .computeIfAbsent(classModel.sourceClass, key -> new IdentityHashMap<>());
-                if (!ordinals.containsKey(classModel.sourceClassInstance)) {
-                    ordinals.put(classModel.sourceClassInstance, ordinals.size() + 1);
-                }
-            }
-            for (FieldModel fieldModel : classModel.fieldModels) {
-                for (ClassModel fieldTypeClassModel : fieldModel.fieldTypeClassesModels) {
-                    collectInstances(fieldTypeClassModel);
-                }
-            }
-            collectInstances(classModel.superClassModel);
+            this.instanceOrdinals = new InstanceOrdinals(rootClassModels);
         }
 
         String instanceSuffix(ClassModel classModel) {
-            if (classModel.sourceClass == null || classModel.sourceClassInstance == null) {
-                return null;
-            }
-            Map<Object, Integer> ordinals = instanceOrdinals.get(classModel.sourceClass);
-            if (ordinals == null || ordinals.size() <= 1) {
-                return null;
-            }
-            Integer ordinal = ordinals.get(classModel.sourceClassInstance);
-            return ordinal == null ? null : "@" + ordinal;
+            return instanceOrdinals.instanceSuffix(classModel);
         }
 
         void markDeclared(String classAlias) {
-            if (!declarationOrder.containsKey(classAlias)) {
-                declarationOrder.put(classAlias, declarationOrder.size());
-            }
+            declarationOrder.markDeclared(classAlias);
         }
 
         boolean isBackEdge(String fromAlias, String targetAlias) {
-            Integer from = declarationOrder.get(fromAlias);
-            Integer target = declarationOrder.get(targetAlias);
-            return from != null && target != null && target < from;
+            return declarationOrder.isBackEdge(fromAlias, targetAlias);
         }
 
         boolean addLink(String fromAlias, String targetAlias, String label) {

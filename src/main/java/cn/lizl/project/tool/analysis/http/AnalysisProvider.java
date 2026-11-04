@@ -23,7 +23,8 @@ public interface AnalysisProvider {
     /**
      * 返回可查看的对象名列表。
      *
-     * @param rebuild 为 true 时触发一次重新分析（异步），并返回当前已有的名字列表
+     * @param rebuild 为 true 时清空全部缓存并异步提交一轮批量重算；名单里的对象在下次
+     *                {@link #getAnalyzedResult} 访问时仍会同步重算（HTTP 线程执行）
      */
     List<String> getBeanNames(boolean rebuild);
 
@@ -37,7 +38,8 @@ public interface AnalysisProvider {
     /**
      * 容器的展示名；返回 null 时用 {@link #getName()} 的注册名。
      *
-     * <p>只在多容器的选择页上展示；单容器页面不出现容器名，实现可以不关心本方法。
+     * <p>展示位置是 {@code GET /beans} 的容器选择页——该页无论挂了几个容器都会出现，
+     * 展示名为空的卡片回退用注册名，实现仍应提供有意义的名字。
      */
     default String getDisplayName() {
         return null;
