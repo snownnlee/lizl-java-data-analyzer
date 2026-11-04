@@ -210,7 +210,12 @@ class FieldModel extends RunningConfigCapable {
         if (parentClassModel.shouldAnalyze(entry.getValue().getClass(), true)) {
             analyzeSourceValue(new MapEntry<>(entry));
         } else {
-            collectSimpleValue(entry.getKey() + "=" + entry.getValue());
+            String key = String.valueOf(entry.getKey());
+            // 内联值绕过了渲染层的按字段名脱敏：这里按 entry key 逐项判定，只挡值不挡 key 与其它 entry
+            String value = runningConfig.maskSensitiveValues && CommonUtil.isSensitiveName(key)
+                    ? CommonUtil.SENSITIVE_VALUE_MARK
+                    : String.valueOf(entry.getValue());
+            collectSimpleValue(key + "=" + value);
         }
     }
 
@@ -218,7 +223,9 @@ class FieldModel extends RunningConfigCapable {
         if (simpleViewElementValues == null) {
             simpleViewElementValues = new ArrayList<>();
         }
-        simpleViewElementValues.add(CommonUtil.getStringFrom(display, runningConfig.valueDisplayLengthLimit));
+        // display 可能是嵌套容器，交给带脱敏标志的格式化入口处理其中的敏感 key
+        simpleViewElementValues.add(CommonUtil.getStringFrom(display, runningConfig.valueDisplayLengthLimit,
+                runningConfig.maskSensitiveValues));
     }
 
     /** 简单视图下被排除元素的显示值；非集合元素字段为 {@code null} */

@@ -101,7 +101,8 @@
             <scope>provided</scope>
             <optional>true</optional>
         </dependency>
-        <!-- 仅为消除 spring-core @Nullable 缺 javax.annotation 时的 javac 告警 -->
+        <!-- 本库源码已不使用 javax.annotation；保留 jsr305 只为消除 Spring 5.3 @Nullable 元注解
+             （javax.annotation.meta.When）在 javac 下的「未知的枚举常量」告警。 -->
         <dependency>
             <groupId>com.google.code.findbugs</groupId>
             <artifactId>jsr305</artifactId>

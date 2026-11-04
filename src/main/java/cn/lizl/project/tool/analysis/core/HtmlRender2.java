@@ -220,7 +220,8 @@ class HtmlRender2 extends BaseRender {
                 || fieldValue instanceof Enum;
         if (renderValue) {
             skeleton.append(",\"value\":");
-            appendString(CommonUtil.getStringFrom(fieldValue, runningConfig.valueDisplayLengthLimit), skeleton);
+            appendString(CommonUtil.getStringFrom(
+                    fieldValue, runningConfig.valueDisplayLengthLimit, runningConfig.maskSensitiveValues), skeleton);
             return;
         }
         int size = -1;

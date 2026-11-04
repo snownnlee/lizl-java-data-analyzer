@@ -41,6 +41,7 @@ cn:
         token: change-me-in-prod                    # 访问令牌；配置后须带 ?token=xxx 或请求头 X-Analysis-Token（会进浏览器历史，优先用 Basic）
         auth-user: admin                            # HTTP Basic 用户名；与 auth-password 同时配置才启用
         auth-password: change-me-in-prod            # HTTP Basic 密码；缺任一项则不启用；该字段不会被打进日志
+        allowed-hosts:                              # 额外放行的 Host（反向代理域名 / 局域网 IP）；默认只放行回环地址与 bind-address 本身，留空等价不配置
 
       # ================= beans 通道 =================
       # 采集容器里的 Bean 并分析其对象结构；与 interceptor 段完全独立取值

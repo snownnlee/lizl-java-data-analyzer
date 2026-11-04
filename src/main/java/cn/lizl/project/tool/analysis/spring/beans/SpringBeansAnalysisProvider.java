@@ -16,7 +16,6 @@ import org.springframework.context.EnvironmentAware;
 import org.springframework.core.env.Environment;
 import org.springframework.lang.Nullable;
 
-import javax.annotation.Nonnull;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -102,17 +101,17 @@ public class SpringBeansAnalysisProvider
     }
 
     @Override
-    public void setEnvironment(@Nonnull Environment environment) {
+    public void setEnvironment(Environment environment) {
         this.environment = environment;
     }
 
     @Override
-    public void setApplicationContext(@Nonnull ApplicationContext applicationContext) throws BeansException {
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
         this.applicationContext = applicationContext;
     }
 
     @Override
-    public void setBeanFactory(@Nonnull BeanFactory beanFactory) throws BeansException {
+    public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
         this.beanFactory = beanFactory;
     }
 

@@ -8,7 +8,6 @@ import org.springframework.web.reactive.result.method.annotation.RequestMappingH
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import javax.annotation.Nonnull;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -97,7 +96,7 @@ final class ReactiveArgumentCaptureInstaller implements BeanPostProcessor {
     }
 
     @Override
-    public Object postProcessAfterInitialization(@Nonnull Object bean, @Nonnull String beanName) {
+    public Object postProcessAfterInitialization(Object bean, String beanName) {
         if (bean instanceof RequestMappingHandlerAdapter) {
             wrapResolversInPlace(bean);
         }

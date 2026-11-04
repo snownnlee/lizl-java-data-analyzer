@@ -3,7 +3,6 @@ package cn.lizl.project.tool.analysis.http;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
-import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
@@ -12,9 +11,13 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -62,6 +65,13 @@ public final class HttpAnalysisServer {
 
     private static final String HOST_HEADER = "Host";
 
+    /**
+     * 默认放行的 Host。防 DNS rebinding：攻击者域名解析到回环后，页面 URL 与 Host 头一致，
+     * 基于 Origin/Host 比较的跨站校验会失效，只有校验 Host 本身才能区分。
+     */
+    private static final Set<String> DEFAULT_ALLOWED_HOSTS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList("127.0.0.1", "localhost", "::1", "0:0:0:0:0:0:0:1")));
+
     private final Logger log = Logger.getLogger(getClass().getName());
 
     /**
@@ -88,6 +98,9 @@ public final class HttpAnalysisServer {
 
     /** 预拼好的 {@code Basic base64(user:pass)}，为 null 表示未启用 Basic 认证 */
     private String basicCredential;
+
+    /** 额外放行的 Host（归一化后的值），由 {@link #setAllowedHosts(String...)} 设置 */
+    private final Set<String> allowedHosts = new HashSet<>();
 
     private int threads = 4;
 
@@ -172,6 +185,26 @@ public final class HttpAnalysisServer {
         return this;
     }
 
+    /**
+     * 设置额外放行的 Host，重复调用以最后一次为准；传 null 或空数组等于清空。
+     *
+     * <p>默认只放行回环地址与 {@code bindAddress} 本身。绑定 0.0.0.0、经反向代理或用局域网 IP 访问时，
+     * Host 头会是代理域名/局域网 IP，必须在这里显式放行，否则请求一律 403。传入值应为纯主机名或 IP
+     * （不带协议与端口），比较时忽略大小写、剥 IPv6 方括号与末尾点；不接收通配符。
+     */
+    public HttpAnalysisServer setAllowedHosts(String... hosts) {
+        allowedHosts.clear();
+        if (hosts != null) {
+            for (String host : hosts) {
+                String normalized = normalizeHost(host);
+                if (normalized != null && !normalized.isEmpty()) {
+                    allowedHosts.add(normalized);
+                }
+            }
+        }
+        return this;
+    }
+
     public synchronized boolean isRunning() {
         return server != null;
     }
@@ -233,6 +266,12 @@ public final class HttpAnalysisServer {
         if (server != null) {
             return this;
         }
+        if (token == null && basicCredential == null && !isLoopbackBinding()) {
+            throw new IllegalStateException("HTTP 服务绑定到非回环地址 " + bindAddress
+                    + " 但未配置任何凭证，已拒绝启动。请配置 token 或 HTTP Basic"
+                    + "（setToken / setBasicAuth，Spring 侧为 server.token 或 server.auth-user + server.auth-password），"
+                    + "或把 bind-address 改回 127.0.0.1");
+        }
         HttpServer created = null;
         ExecutorService createdExecutor = null;
         try {
@@ -255,6 +294,10 @@ public final class HttpAnalysisServer {
         try {
             log.info("JavaDataAnalyzer 独立 HTTP 服务已启动 ===> " + logUrl("/")
                     + (token == null ? "" : "（已启用 token 校验；完整带 token 的访问地址请用 getAccessUrl() 获取，不落日志）"));
+            if (token == null && basicCredential == null) {
+                log.warning("HTTP 服务未配置任何凭证，仅应在开发/调试环境使用；本机任意程序与第三方网页都可能读取报告，"
+                        + "请勿在生产环境常开");
+            }
             for (HttpServiceHandler handler : handlers) {
                 if (handler.isAvailable()) {
                     String entryPath = handler.getEntryPath();
@@ -310,6 +353,10 @@ public final class HttpAnalysisServer {
 
     private void handle(HttpExchange exchange) {
         try {
+            if (!isAllowedHost(exchange)) {
+                HttpResponses.text(exchange, 403, "host not allowed");
+                return;
+            }
             if (!isAuthorized(exchange)) {
                 sendUnauthorized(exchange);
                 return;
@@ -418,6 +465,53 @@ public final class HttpAnalysisServer {
             }
         }
         return summary.toString();
+    }
+
+    // ---------------- Host 白名单 ----------------
+
+    /** 归一化 Host：去空白、转小写、剥 IPv6 方括号与末尾点。Locale.ROOT 规避土耳其语大小写问题。 */
+    private static String normalizeHost(String host) {
+        if (host == null) {
+            return null;
+        }
+        String value = host.trim().toLowerCase(Locale.ROOT);
+        if (value.startsWith("[") && value.endsWith("]")) {
+            value = value.substring(1, value.length() - 1);
+        }
+        while (value.endsWith(".")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
+    }
+
+    /** 绑定地址是否为回环：回环允许零配置启动，非回环必须配凭证。整个 127/8 段都是回环。 */
+    private boolean isLoopbackBinding() {
+        String address = normalizeHost(bindAddress);
+        return address != null && ("localhost".equals(address) || address.startsWith("127.")
+                || "::1".equals(address) || "0:0:0:0:0:0:0:1".equals(address));
+    }
+
+    /**
+     * Host 头是否在白名单内。缺失 Host 视为非浏览器/内部客户端放行，与
+     * {@link #isCrossSiteRequest} 对缺失 Origin 的口径一致；解析不出主机名的一律拒绝。
+     */
+    private boolean isAllowedHost(HttpExchange exchange) {
+        String hostHeader = exchange.getRequestHeaders().getFirst(HOST_HEADER);
+        if (hostHeader == null || hostHeader.trim().isEmpty()) {
+            return true;
+        }
+        String host;
+        try {
+            host = normalizeHost(URI.create("http://" + hostHeader.trim()).getHost());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        if (host == null || host.isEmpty()) {
+            return false;
+        }
+        return DEFAULT_ALLOWED_HOSTS.contains(host)
+                || host.equals(normalizeHost(bindAddress))
+                || allowedHosts.contains(host);
     }
 
     // ---------------- 鉴权 ----------------
@@ -541,7 +635,7 @@ public final class HttpAnalysisServer {
         private final AtomicInteger counter = new AtomicInteger(0);
 
         @Override
-        public Thread newThread(@Nonnull Runnable runnable) {
+        public Thread newThread(Runnable runnable) {
             Thread thread = new Thread(runnable, "lizl-java-data-analyzer-http-" + counter.incrementAndGet());
             thread.setDaemon(true);
             return thread;

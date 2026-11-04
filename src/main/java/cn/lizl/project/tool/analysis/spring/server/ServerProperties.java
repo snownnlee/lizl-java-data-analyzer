@@ -4,6 +4,8 @@ import lombok.Data;
 import lombok.ToString;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.List;
+
 /**
  * 共用 HTTP 服务的传输配置，前缀 {@code cn.lizl.java-data-analyzer.server}。
  *
@@ -40,4 +42,10 @@ public class ServerProperties {
     /** HTTP Basic 认证密码；标 {@code @ToString.Exclude} 免得被 {@code @Data} 的 toString 打进日志。 */
     @ToString.Exclude
     private String authPassword;
+
+    /**
+     * 额外放行的 Host（反向代理域名、局域网 IP 等）。默认只放行回环地址与 {@code bindAddress} 本身，
+     * Host 头不在白名单的请求返回 403；经代理或用局域网 IP 访问时需显式配置。
+     */
+    private List<String> allowedHosts;
 }

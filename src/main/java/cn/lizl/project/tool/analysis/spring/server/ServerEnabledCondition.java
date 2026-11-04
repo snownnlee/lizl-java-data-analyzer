@@ -4,8 +4,6 @@ import org.springframework.context.annotation.Condition;
 import org.springframework.context.annotation.ConditionContext;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 
-import javax.annotation.Nonnull;
-
 /**
  * 开关键条件：只读 {@code server.enable}，与其它两块配置的开关互不影响。
  *
@@ -17,7 +15,7 @@ import javax.annotation.Nonnull;
 public class ServerEnabledCondition implements Condition {
 
     @Override
-    public boolean matches(ConditionContext context, @Nonnull AnnotatedTypeMetadata metadata) {
+    public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
         return EnableFlag.isEnabled(context.getEnvironment(), ServerProperties.PREFIX + ".enable");
     }
 }

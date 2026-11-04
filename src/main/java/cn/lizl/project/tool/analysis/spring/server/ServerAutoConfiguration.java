@@ -63,6 +63,9 @@ public class ServerAutoConfiguration {
             // 用户名或密码缺一个时 setBasicAuth 内部按「未启用」处理，不需要在这里额外判空
             server.setBasicAuth(properties.getAuthUser(), properties.getAuthPassword());
         }
+        if (properties.getAllowedHosts() != null && !properties.getAllowedHosts().isEmpty()) {
+            server.setAllowedHosts(properties.getAllowedHosts().toArray(new String[0]));
+        }
         try {
             return server.start();
         } catch (IOException e) {

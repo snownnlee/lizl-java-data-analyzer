@@ -157,7 +157,19 @@ public class CommonUtil {
     }
 
     public static String getStringFrom(Object object, int lengthLimit) {
-        return getStringFrom(object, lengthLimit, Collections.newSetFromMap(new IdentityHashMap<>()));
+        return getStringFrom(object, lengthLimit, false);
+    }
+
+    /**
+     * 报告渲染取值专用：{@code maskSensitiveValues=true} 时，Map 中 key 命中敏感名单的 entry
+     * 只把「值」替换为 {@link #SENSITIVE_VALUE_MARK}，key 与其它 entry 照常展示。
+     *
+     * <p>字段名脱敏在渲染层做，但容器内部的 key 渲染层看不到，只能在这里逐项判定；两参入口
+     * 不带此行为，供文件名、日志等非报告场景沿用。脱敏只按 key 判定，不对任意值做敏感子串
+     * 扫描，以免普通文本被误打码。
+     */
+    public static String getStringFrom(Object object, int lengthLimit, boolean maskSensitiveValues) {
+        return getStringFrom(object, lengthLimit, maskSensitiveValues, Collections.newSetFromMap(new IdentityHashMap<>()));
     }
 
     /**
@@ -166,7 +178,7 @@ public class CommonUtil {
      * <p>{@code path} 只记「当前递归路径上」的容器，命中即成环——自引用集合会让
      * {@code HashMap.toString()} 之类一路展开。用路径而非「已访问」：同一容器被并列引用两次时要各自展开。
      */
-    private static String getStringFrom(Object object, int lengthLimit, Set<Object> path) {
+    private static String getStringFrom(Object object, int lengthLimit, boolean maskSensitive, Set<Object> path) {
         if (object == null) {
             return "null";
         }
@@ -181,7 +193,7 @@ public class CommonUtil {
             return CYCLE_MARK;
         }
         try {
-            return formatValue(object, lengthLimit, path);
+            return formatValue(object, lengthLimit, maskSensitive, path);
         } finally {
             if (container) {
                 path.remove(object);
@@ -197,7 +209,7 @@ public class CommonUtil {
                 || object instanceof Map;
     }
 
-    private static String formatValue(Object object, int lengthLimit, Set<Object> path) {
+    private static String formatValue(Object object, int lengthLimit, boolean maskSensitive, Set<Object> path) {
         if (object.getClass().isArray()) {
             StringJoiner resultJoiner = new StringJoiner(", ", "[", "]");
             int length = Array.getLength(object);
@@ -206,7 +218,7 @@ public class CommonUtil {
                     resultJoiner.add("...");
                     break;
                 }
-                resultJoiner.add(getStringFrom(Array.get(object, i), lengthLimit, path));
+                resultJoiner.add(getStringFrom(Array.get(object, i), lengthLimit, maskSensitive, path));
             }
             return resultJoiner.toString();
         }
@@ -224,7 +236,7 @@ public class CommonUtil {
                     resultJoiner.add("...");
                     break;
                 }
-                resultJoiner.add(getStringFrom(item, lengthLimit, path));
+                resultJoiner.add(getStringFrom(item, lengthLimit, maskSensitive, path));
             }
             return resultJoiner.toString();
         }
@@ -236,7 +248,7 @@ public class CommonUtil {
                     resultJoiner.add("...");
                     break;
                 }
-                resultJoiner.add(getStringFrom(enumeration.nextElement(), lengthLimit, path));
+                resultJoiner.add(getStringFrom(enumeration.nextElement(), lengthLimit, maskSensitive, path));
             }
             return resultJoiner.toString();
         }
@@ -248,7 +260,7 @@ public class CommonUtil {
                     resultJoiner.add("...");
                     break;
                 }
-                resultJoiner.add(getStringFrom(iterator.next(), lengthLimit, path));
+                resultJoiner.add(getStringFrom(iterator.next(), lengthLimit, maskSensitive, path));
             }
             return resultJoiner.toString();
         }
@@ -259,7 +271,12 @@ public class CommonUtil {
                     resultJoiner.add("...");
                     break;
                 }
-                resultJoiner.add(getStringFrom(entry.getKey(), lengthLimit, path) + "=" + getStringFrom(entry.getValue(), lengthLimit, path));
+                String keyText = getStringFrom(entry.getKey(), lengthLimit, maskSensitive, path);
+                // 容器内部的 key 渲染层看不到：命中敏感名单时只替换该项的「值」，key 与其它 entry 照常展示
+                String valueText = maskSensitive && isSensitiveName(keyText)
+                        ? SENSITIVE_VALUE_MARK
+                        : getStringFrom(entry.getValue(), lengthLimit, maskSensitive, path);
+                resultJoiner.add(keyText + "=" + valueText);
             }
             return resultJoiner.toString();
         }
