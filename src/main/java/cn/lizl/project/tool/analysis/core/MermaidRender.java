@@ -20,7 +20,7 @@ class MermaidRender extends BasePumlRender {
     }
 
     @Override
-    public String render(ClassModel[] classModels) {
+    protected String renderContent(ClassModel[] classModels) {
         RenderContext context = new RenderContext(classModels);
 
         appendHeader(context, classModels);

@@ -66,4 +66,10 @@ class GlobalConfig {
     static volatile boolean maskSensitiveValues = true;
 
     static volatile RenderType renderType = RenderType.HTML;
+
+    /**
+     * HTML 产物是否内联样式/脚本资源，默认 {@code false}（同目录 sidecar，多产物共用一份）。
+     * 开启后是单文件自包含产物，代价是体积变大（引擎内联后可达数 MB）。
+     */
+    static volatile boolean inlineAssets = false;
 }

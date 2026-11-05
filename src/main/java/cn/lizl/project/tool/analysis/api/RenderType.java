@@ -4,7 +4,8 @@ package cn.lizl.project.tool.analysis.api;
  * 产物形态：同一份分析结果可落成可折叠 HTML、PlantUML 或 Mermaid。
  *
  * <p>{@code HTML} / {@code HTML2} 的扩展名都是 {@code .html}（区别在 DOM 由服务端还是浏览器拼）；
- * 带 {@code _HTML} 后缀的静态图内嵌浏览器端引擎，产物必须与同目录 sidecar 一起分发。
+ * 带 {@code _HTML} 后缀的静态图内嵌浏览器端引擎，默认需与同目录 sidecar 一起分发，
+ * 开启 {@link GeneralConfigurer#setInlineAssets(boolean)} 后产物自包含。
  * 全局默认 {@link #HTML}（拦截器通道自带自己的默认值，见其配置说明）。
  */
 public enum RenderType {

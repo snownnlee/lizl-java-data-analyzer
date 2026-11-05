@@ -94,6 +94,11 @@ public final class DefaultGlobalConfigurer implements GlobalConfigurer {
     }
 
     @Override
+    public GlobalConfigurer setInlineAssets(final boolean value) {
+        return addAction(() -> GlobalConfig.inlineAssets = value);
+    }
+
+    @Override
     public GlobalConfigurer setCommonIncludePackages(final String... commonIncludePackages) {
         if (commonIncludePackages != null) {
             return addAction(() -> GlobalConfig.commonIncludePackages = commonIncludePackages);

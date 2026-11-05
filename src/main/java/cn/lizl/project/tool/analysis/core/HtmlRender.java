@@ -27,7 +27,7 @@ class HtmlRender extends BaseRender {
     }
 
     @Override
-    public String render(ClassModel[] classModels) {
+    protected String renderContent(ClassModel[] classModels) {
         StringBuilder content = new StringBuilder();
         for (ClassModel classModel : classModels) {
             renderClassModel(classModel, true, false, content);

@@ -39,6 +39,8 @@ class RunningConfig {
 
     RenderType renderType = GlobalConfig.renderType;
 
+    boolean inlineAssets = GlobalConfig.inlineAssets;
+
     String outputRootDir = GlobalConfig.globalOutputRootDir;
 
     String[] outputFileName;
@@ -60,6 +62,7 @@ class RunningConfig {
         addToStringField = GlobalConfig.addToStringField;
         maskSensitiveValues = GlobalConfig.maskSensitiveValues;
         renderType = GlobalConfig.renderType;
+        inlineAssets = GlobalConfig.inlineAssets;
 
         outputRootDir = GlobalConfig.globalOutputRootDir;
         outputFileName = null;

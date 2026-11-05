@@ -46,7 +46,7 @@ class HtmlRender2 extends BaseRender {
     }
 
     @Override
-    public String render(ClassModel[] classModels) {
+    protected String renderContent(ClassModel[] classModels) {
         return HtmlTemplates.fill(HtmlTemplates.load(OUTPUT_TEMPLATE_NAME),
                 PLACEHOLDERS,
                 new String[]{HtmlRender.buildReportTitle(classModels),

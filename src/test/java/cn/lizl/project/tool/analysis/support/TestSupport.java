@@ -77,6 +77,7 @@ public final class TestSupport {
                 .setAddToStringField(false)
                 .setMaskSensitiveValues(true)
                 .setRenderType(RenderType.HTML)
+                .setInlineAssets(false)
                 .setGlobalOutputRootDir(TEST_OUTPUT_DIR)
                 .setThrowExceptionWhenStringClassNotFound(false)
                 .setClassLoader(TestSupport.class.getClassLoader())

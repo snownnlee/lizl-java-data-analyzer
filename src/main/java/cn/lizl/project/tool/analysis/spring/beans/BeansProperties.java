@@ -72,6 +72,9 @@ public class BeansProperties {
     /** 渲染类型，默认 HTML */
     private RenderType renderType = RenderType.HTML;
 
+    /** 产物是否内联样式/脚本资源：单文件自包含但体积更大；默认 false，按同目录 sidecar 分发 */
+    private Boolean inlineAssets;
+
     private Boolean shouldAnalyzeNullValue;
 
     private Boolean defaultToExpand;
@@ -106,6 +109,7 @@ public class BeansProperties {
         checkAndSet(analysisTimeoutMillis, configurer::setAnalyzingTimeoutMillis);
         checkAndSet(analysisMode, configurer::setAnalysisMode);
         checkAndSet(renderType, configurer::setRenderType);
+        checkAndSet(inlineAssets, configurer::setInlineAssets);
         checkAndSet(shouldAnalyzeNullValue, configurer::setShouldAnalyzeNullValue);
         checkAndSet(defaultToExpand, configurer::setDefaultToExpand);
         checkAndSet(addToStringField, configurer::setAddToStringField);

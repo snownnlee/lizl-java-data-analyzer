@@ -118,4 +118,12 @@ public interface GeneralConfigurer<T extends GeneralConfigurer<T>> {
      * 渲染类型，默认 {@link RenderType#HTML}。同一实例可在两次 {@code run} 之间切换。
      */
     T setRenderType(RenderType renderType);
+
+    /**
+     * HTML 产物是否内联样式/脚本资源，默认 {@code false}。
+     * 开启后是单文件自包含产物：便于分发归档，{@code run(OutputContentReceiver)} 取回的内容也能直接用；
+     * 代价是体积变大（{@code HTML2} 约 22 KB、{@code PUML_HTML} 约 5 MB），同目录多个产物不再共用资源。
+     * {@code PUML} / {@code MERMAID} 是纯文本产物，本项对其不生效。
+     */
+    T setInlineAssets(boolean value);
 }

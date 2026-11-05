@@ -54,6 +54,7 @@ cn:
         ignore-bean-packages:                       # 按类名包前缀忽略；类、父类、父接口都会比对
         output-root-dir: ./analysis-output/beans    # 本通道产物根目录；不配置用全局默认 ~/cn.lizl.project.tool.analysis-result
         render-type: HTML                           # 产物格式，不配置则默认 HTML
+        inline-assets: false                        # 是否把样式/脚本内联成单文件自包含产物；默认 false（同目录 sidecar，多产物共用一份）；开启后体积变大（HTML2 约 22 KB，PUML_HTML 约 5 MB）
         # 包规则：与全局默认规则叠加（判定顺序 运行级 include → 运行级 exclude → 全局 include → 全局 exclude）
         #   只接受「非空且不含空白项」的数组：留空 / [] / 不写 三者等价（都表示本层不追加规则）
         #   空白项会被过滤（"" 作为前缀会匹配一切类名）
@@ -105,6 +106,7 @@ cn:
         output-retention: 3000                      # 每个日期目录各自保留的产物上限；默认 3000，≤0 不限制
         output-root-dir: ./analysis-output/interceptor  # 本通道产物根目录（其下按日期建子目录）；默认 ~/cn.lizl.project.tool.analysis-result/interceptor
         render-type: HTML2                          # 产物格式，不配置则默认 HTML2
+        inline-assets: false                        # 是否把样式/脚本内联成单文件自包含产物；默认 false（同目录 sidecar，多产物共用一份）；开启后体积变大（HTML2 约 22 KB，PUML_HTML 约 5 MB）
         # 包规则同上：非空才接受、空白项过滤、与全局规则叠加（不读 beans 段的规则）
         common-exclude-packages:                    # 追加的排除包，只作用于本通道产物
           - org.slf4j.                     # 常见日志门面/实现：字段全是静态 Logger，展开无信息量

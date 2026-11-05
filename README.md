@@ -13,7 +13,7 @@
 | | |
 |---|---|
 | **看得全** | 同一份报告里既有类字段定义（类型、泛型、静态/final、继承），也有实例真实取值与引用关系 |
-| **看得清** | 可折叠交互式 HTML；样式/脚本/渲染引擎随产物同目录分发，**断网双击即看**，不引 CDN |
+| **看得清** | 可折叠交互式 HTML；样式/脚本/渲染引擎随产物同目录分发（或内联为单文件），**断网双击即看**，不引 CDN |
 | **看得懂** | 6 种产物：`HTML` / `HTML2` / `PUML` / `PUML_HTML` / `MERMAID` / `MERMAID_HTML` |
 | **接得上** | 纯工具库零 Spring 依赖；Spring Boot 下三块配置自动装配。**运行时零依赖**，前端引擎随包分发 |
 | **查得到** | 独立 HTTP 服务（JDK 原生 `HttpServer`，不依赖 Servlet/WebFlux），浏览器里点 Bean 名看对象现状 |
@@ -51,6 +51,10 @@ JavaDataAnalyzer.runningConfigurer()
 
 产物默认写到 `MyAnalysisHome/analysis/订单对象.html`。想直接取回内容用 `run(OutputContentReceiver)` 回调，
 `setRenderType(...)` 切换 6 种产物形态；完整配置项见各 configurer 的 Javadoc。
+
+HTML 产物默认把样式/脚本放同目录（多产物共用一份、浏览器可缓存）；需要单文件自包含（便于分发归档、
+`run(OutputContentReceiver)` 的内容也能直接用）时加 `setInlineAssets(true)`，代价是体积变大（`PUML_HTML` 约 5 MB）
+且同目录多个产物不再共用资源。
 
 ## Spring Boot 集成
 

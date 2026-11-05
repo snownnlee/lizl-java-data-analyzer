@@ -12,8 +12,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * 交互式 HTML 树（{@code HTML} / {@code HTML2}）的样式与脚本：<b>不内联</b>，以「带内容指纹的文件名 +
- * 同目录相对引用」分发，口径与 {@link FrontendAssets} 里的前端引擎一致。
+ * 交互式 HTML 树（{@code HTML} / {@code HTML2}）的样式与脚本：默认<b>不内联</b>，以「带内容指纹的文件名 +
+ * 同目录相对引用」分发，口径与 {@link FrontendAssets} 里的前端引擎一致；开启内联时由 {@link AssetInliner} 处理。
  *
  * <p>为什么外置：这两份资源每份产物都要带一遍（压缩后合计约 22 KB），同目录多个产物、反复分析时
  * 纯属重复；外置后浏览器还能跨产物复用同一份缓存。

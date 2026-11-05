@@ -10,8 +10,9 @@ import java.util.logging.Logger;
 /**
  * 产物 HTML 用到的前端渲染引擎（classpath 里的 {@code analysis/js/}）。
  *
- * <p>产物不内联引擎、也不引 CDN，而是在同目录放一份同名 js 并相对引用：
+ * <p>产物默认不内联引擎、也不引 CDN，而是在同目录放一份同名 js 并相对引用：
  * 双击打开（{@code file://}）与断网都能看图，多个产物之间还能共用同一份文件。
+ * 开启内联（{@code inlineAssets}）时改由 {@link AssetInliner} 嵌入产物。
  *
  * <p>引擎来源与许可见同目录的 {@code SOURCES.txt}，由 {@code scripts/fetch-frontend-assets.py} 生成。
  *

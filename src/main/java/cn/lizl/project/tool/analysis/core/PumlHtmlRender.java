@@ -38,12 +38,12 @@ class PumlHtmlRender extends BaseRender {
     }
 
     @Override
-    public String render(ClassModel[] classModels) {
+    protected String renderContent(ClassModel[] classModels) {
         return HtmlTemplates.fill(HtmlTemplates.load(SHELL_TEMPLATE),
                 PLACEHOLDERS,
                 new String[]{FAVICON_DATA_URI, HtmlTemplates.escapeHtml(buildTitle(classModels)),
                         FrontendAssets.VIZ_GLOBAL, FrontendAssets.PLANTUML,
-                        toJsStringArray(pumlRender.render(classModels))});
+                        toJsStringArray(pumlRender.renderContent(classModels))});
     }
 
     private static String buildTitle(ClassModel[] classModels) {

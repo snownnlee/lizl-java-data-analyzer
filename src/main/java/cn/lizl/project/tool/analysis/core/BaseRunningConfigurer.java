@@ -147,6 +147,12 @@ abstract class BaseRunningConfigurer extends RunningConfigCapable implements Run
     }
 
     @Override
+    public RunningConfigurer setInlineAssets(final boolean value) {
+        runningConfig.inlineAssets = value;
+        return this;
+    }
+
+    @Override
     public RunningConfigurer setOutputFileName(final String... outputFileName) {
         if (outputFileName != null) {
             runningConfig.outputFileName = outputFileName;

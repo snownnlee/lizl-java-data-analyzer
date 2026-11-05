@@ -26,8 +26,8 @@ class MermaidHtmlRender extends BaseRender {
     }
 
     @Override
-    public String render(ClassModel[] classModels) {
-        String diagram = mermaidRender.render(classModels);
+    protected String renderContent(ClassModel[] classModels) {
+        String diagram = mermaidRender.renderContent(classModels);
         return HtmlTemplates.fill(HtmlTemplates.load(SHELL_TEMPLATE),
                 PLACEHOLDERS,
                 new String[]{PumlHtmlRender.FAVICON_DATA_URI,

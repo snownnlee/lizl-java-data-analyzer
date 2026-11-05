@@ -62,6 +62,9 @@ public class InterceptorProperties {
      */
     private RenderType renderType = RenderType.HTML2;
 
+    /** 产物是否内联样式/脚本资源：单文件自包含但体积更大；默认 false，按同目录 sidecar 分发 */
+    private Boolean inlineAssets;
+
     private String[] commonExcludePackages;
 
     private String[] commonIncludePackages;
@@ -123,6 +126,7 @@ public class InterceptorProperties {
                 ? analysisTimeoutMillis : DEFAULT_ANALYSIS_TIMEOUT_MILLIS);
         checkAndSet(analysisMode, configurer::setAnalysisMode);
         checkAndSet(renderType, configurer::setRenderType);
+        checkAndSet(inlineAssets, configurer::setInlineAssets);
         checkAndSet(shouldAnalyzeNullValue, configurer::setShouldAnalyzeNullValue);
         checkAndSet(defaultToExpand, configurer::setDefaultToExpand);
         checkAndSet(addToStringField, configurer::setAddToStringField);
