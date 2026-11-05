@@ -12,8 +12,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 交互式 HTML 树的「数据骨架」形态：产物里只写一份 JSON，DOM 由同目录的
- * {@link HtmlTreeAssets#BUILDER} 在浏览器里建。
+ * 交互式 HTML 树的「数据骨架」形态：产物里只写一份 JSON，DOM 由建树脚本
+ * {@link HtmlTreeAssets#BUILDER} 在浏览器里建（默认外置，开启内联时随产物一起下发）。
  *
  * <p>与 {@link HtmlRender} 的关系是「同一棵树的两条通道」：样式、交互脚本、DOM 结构、类名全部共用，
  * 前端建出来的节点因此能被同一份交互脚本直接操作。差异只有两处：
@@ -39,21 +39,21 @@ class HtmlRender2 extends BaseRender {
     /** 数据块所在的 {@code <script>} 元素 id，模板与建树脚本各引用一次，靠测试卡住两边一致 */
     static final String DATA_ELEMENT_ID = "analysis-data";
 
-    private static final String[] PLACEHOLDERS = {"${title}", "${styleFile}", "${scriptFile}", "${data}", "${builderFile}"};
+    private static final String[] PLACEHOLDERS = {"${title}", "${styleTag}", "${scriptTag}", "${data}", "${builderTag}"};
 
     HtmlRender2(RunningConfig runningConfig) {
         super(runningConfig, FILE_EXTENSION);
     }
 
     @Override
-    protected String renderContent(ClassModel[] classModels) {
+    public String render(ClassModel[] classModels) {
         return HtmlTemplates.fill(HtmlTemplates.load(OUTPUT_TEMPLATE_NAME),
                 PLACEHOLDERS,
                 new String[]{HtmlRender.buildReportTitle(classModels),
-                        HtmlTreeAssets.servedName(HtmlTreeAssets.STYLE),
-                        HtmlTreeAssets.servedName(HtmlTreeAssets.INTERACTION),
+                        treeStyleTag(HtmlTreeAssets.STYLE),
+                        treeScriptTag(HtmlTreeAssets.INTERACTION),
                         buildSkeleton(classModels),
-                        HtmlTreeAssets.servedName(HtmlTreeAssets.BUILDER)});
+                        treeScriptTag(HtmlTreeAssets.BUILDER)});
     }
 
     private String buildSkeleton(ClassModel[] classModels) {

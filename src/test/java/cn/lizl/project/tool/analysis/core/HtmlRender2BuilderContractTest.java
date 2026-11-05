@@ -42,7 +42,7 @@ class HtmlRender2BuilderContractTest {
     @Test
     @DisplayName("模板里的五个占位符都必须在，缺一个就是产物少一整块")
     void templateShouldKeepAllPlaceholders() {
-        String[] placeholders = {"${title}", "${styleFile}", "${scriptFile}", "${data}", "${builderFile}"};
+        String[] placeholders = {"${title}", "${styleTag}", "${scriptTag}", "${data}", "${builderTag}"};
         Set<String> missing = new TreeSet<>();
         for (String placeholder : placeholders) {
             if (countOf(template, placeholder) != 1) {

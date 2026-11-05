@@ -28,11 +28,11 @@
 <div id="diagram">
     <pre style="color:#8fb4e0">渲染中…</pre>
 </div>
-<script src="./${vizFile}"></script>
-<script src="./${pumlFile}"></script>
+${vizTag}
+${pumlTag}
 <script>
     if (!window.PlantUML) {
-        document.getElementById("diagram").innerHTML = "<pre style='color:#ff6b6b'>未找到 ${pumlFile}，请确认它与本文件在同一目录</pre>";
+        document.getElementById("diagram").innerHTML = "<pre style='color:#ff6b6b'>未找到 ${pumlName}，请确认它与本文件在同一目录</pre>";
     } else {
         PlantUML.render(${pumlArray}, "diagram");
     }

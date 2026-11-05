@@ -19,15 +19,15 @@ class HtmlRender extends BaseRender {
 
     private static final String OUTPUT_TEMPLATE_NAME = JavaDataAnalyzer.class.getSimpleName() + FILE_EXTENSION;
 
-    /** 样式与交互脚本以 sidecar 形式放产物同目录，两套 HTML 渲染器共用同一份（见 {@link HtmlTreeAssets}） */
-    private static final String[] PLACEHOLDERS = {"${title}", "${styleFile}", "${scriptFile}", "${content}"};
+    /** 标签占位符：外链还是内联由 {@link #treeStyleTag} / {@link #treeScriptTag} 决定 */
+    private static final String[] PLACEHOLDERS = {"${title}", "${styleTag}", "${scriptTag}", "${content}"};
 
     HtmlRender(RunningConfig runningConfig) {
         super(runningConfig, FILE_EXTENSION);
     }
 
     @Override
-    protected String renderContent(ClassModel[] classModels) {
+    public String render(ClassModel[] classModels) {
         StringBuilder content = new StringBuilder();
         for (ClassModel classModel : classModels) {
             renderClassModel(classModel, true, false, content);
@@ -35,8 +35,8 @@ class HtmlRender extends BaseRender {
         return HtmlTemplates.fill(HtmlTemplates.load(OUTPUT_TEMPLATE_NAME),
                 PLACEHOLDERS,
                 new String[]{buildReportTitle(classModels),
-                        HtmlTreeAssets.servedName(HtmlTreeAssets.STYLE),
-                        HtmlTreeAssets.servedName(HtmlTreeAssets.INTERACTION),
+                        treeStyleTag(HtmlTreeAssets.STYLE),
+                        treeScriptTag(HtmlTreeAssets.INTERACTION),
                         content.toString()});
     }
 

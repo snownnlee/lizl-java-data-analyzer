@@ -213,7 +213,7 @@ public final class BeansHttpServiceHandler implements HttpServiceHandler {
             HttpResponses.text(exchange, 404, "not found");
             return;
         }
-        // 结果页用相对路径引用同目录的引擎与样式/脚本（./xxx.js、./xxx.css），浏览器会把请求打到
+        // 外链模式的结果页用相对路径引用同目录的引擎与样式/脚本（./xxx.js、./xxx.css），浏览器会把请求打到
         // /bean/xxx.js，这类请求不带 container 参数，必须赶在容器解析之前拦下
         if (FrontendAssets.isAsset(beanName)) {
             HttpResponses.javascript(exchange, FrontendAssets.read(beanName));

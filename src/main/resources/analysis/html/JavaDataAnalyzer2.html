@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyBmaWxsPScjMGEwZTE3Jy8+PGNpcmNsZSBjeD0nMTYnIGN5PSc5JyByPSc0JyBmaWxsPScjMDBmZmZmJy8+PGNpcmNsZSBjeD0nOCcgY3k9JzIzJyByPSc0JyBmaWxsPScjZmYwMGZmJy8+PGNpcmNsZSBjeD0nMjQnIGN5PScyMycgcj0nNCcgZmlsbD0nIzY0OTVlZCcvPjxwYXRoIGQ9J00xNiAxMyA4IDE5TTE2IDEzbDggNk04IDIzaDE2JyBzdHJva2U9JyMwMGZmZmYnIHN0cm9rZS13aWR0aD0nMS41JyBvcGFjaXR5PScuNycvPjwvc3ZnPg==">
     <title>${title}</title>
-    <link rel="stylesheet" href="./${styleFile}">
-    <script src="./${scriptFile}"></script>
+    ${styleTag}
+    ${scriptTag}
 </head>
 <body>
 <div id="functionArea">
@@ -18,6 +18,6 @@
 <div id="container"></div>
 <div id="particles"></div>
 <script type="application/json" id="analysis-data">${data}</script>
-<script src="./${builderFile}"></script>
+${builderTag}
 </body>
 </html>

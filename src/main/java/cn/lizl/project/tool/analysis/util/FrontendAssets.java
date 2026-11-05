@@ -12,7 +12,7 @@ import java.util.logging.Logger;
  *
  * <p>产物默认不内联引擎、也不引 CDN，而是在同目录放一份同名 js 并相对引用：
  * 双击打开（{@code file://}）与断网都能看图，多个产物之间还能共用同一份文件。
- * 开启内联（{@code inlineAssets}）时改由 {@link AssetInliner} 嵌入产物。
+ * 开启内联（{@code inlineAssets}）时改为把内容嵌进产物。
  *
  * <p>引擎来源与许可见同目录的 {@code SOURCES.txt}，由 {@code scripts/fetch-frontend-assets.py} 生成。
  *
@@ -76,8 +76,9 @@ public final class FrontendAssets {
     /**
      * 把 {@code html} 里引用到的引擎补写到 {@code directory}（已存在且非空则跳过）。
      *
-     * <p>用「内容里出现文件名」判断，而不是让每个调用方传渲染类型：产物落盘有三条路径
-     * （直调、Bean 采集、拦截器），它们都知道自己的字符串内容，但不一定知道渲染类型。
+     * <p>判据是「内容里出现 {@code ./文件名}」而不是光有文件名：产物落盘有三条路径（直调、Bean 采集、
+     * 拦截器），它们只知道自己的字符串内容、不一定知道渲染类型；而引擎缺失的提示文案里同样有文件名，
+     * 内联产物更是任何资源都不该补。
      *
      * <p>失败只记警告：主产物已经写成功了，不该因为附带资源写不进去就让整次分析失败；
      * 但必须留下可排查的日志，否则用户只会看到一张空白图。
@@ -87,7 +88,7 @@ public final class FrontendAssets {
             return;
         }
         for (String asset : ALL) {
-            if (html.contains(asset)) {
+            if (html.contains("./" + asset)) {
                 ensureOne(directory, asset);
             }
         }

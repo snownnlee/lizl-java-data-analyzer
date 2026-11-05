@@ -174,8 +174,8 @@ class TemplateCompressorTest {
 
         // 四个占位符缺一个就是产物里少一整块（标题/样式引用/脚本引用/正文），且不会有任何报错
         assertEquals(1, countOf(compactedTemplate, "${title}"), "${title} 占位符数量异常");
-        assertEquals(1, countOf(compactedTemplate, "${styleFile}"), "${styleFile} 占位符数量异常");
-        assertEquals(1, countOf(compactedTemplate, "${scriptFile}"), "${scriptFile} 占位符数量异常");
+        assertEquals(1, countOf(compactedTemplate, "${styleTag}"), "${styleTag} 占位符数量异常");
+        assertEquals(1, countOf(compactedTemplate, "${scriptTag}"), "${scriptTag} 占位符数量异常");
         assertEquals(1, countOf(compactedTemplate, "${content}"), "${content} 占位符数量异常");
 
         String compactedScript = TemplateCompressor.compactJs(readResource(SCRIPT_NAME));

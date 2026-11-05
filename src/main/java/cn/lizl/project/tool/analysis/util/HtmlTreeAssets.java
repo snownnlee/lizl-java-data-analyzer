@@ -13,7 +13,8 @@ import java.util.logging.Logger;
 
 /**
  * 交互式 HTML 树（{@code HTML} / {@code HTML2}）的样式与脚本：默认<b>不内联</b>，以「带内容指纹的文件名 +
- * 同目录相对引用」分发，口径与 {@link FrontendAssets} 里的前端引擎一致；开启内联时由 {@link AssetInliner} 处理。
+ * 同目录相对引用」分发，口径与 {@link FrontendAssets} 里的前端引擎一致；开启内联（{@code inlineAssets}）
+ * 时内容直接嵌进产物。
  *
  * <p>为什么外置：这两份资源每份产物都要带一遍（压缩后合计约 22 KB），同目录多个产物、反复分析时
  * 纯属重复；外置后浏览器还能跨产物复用同一份缓存。
@@ -85,8 +86,9 @@ public final class HtmlTreeAssets {
     /**
      * 把产物内容里引用到的资源补写到 {@code directory}。
      *
-     * <p>与 {@link FrontendAssets#ensureReferenced} 同口径：用「内容里出现文件名」判断，因为产物落盘
-     * 有三条路径（直调、Bean 采集、拦截器），它们只知道自己的字符串内容，不一定知道渲染类型。
+     * <p>与 {@link FrontendAssets#ensureReferenced} 同口径：判据是「含 {@code ./引用名}」，因为产物落盘
+     * 有三条路径（直调、Bean 采集、拦截器），它们只知道自己的字符串内容，不一定知道渲染类型；
+     * 光有文件名也会命中提示文案，内联产物则一个资源都不该补。
      *
      * <p>失败只记警告：主产物已经写成功，不该因为附带资源写不进去让整次分析失败，但必须留下可排查的
      * 日志，否则用户只会看到一个没样式的页面。
@@ -97,7 +99,7 @@ public final class HtmlTreeAssets {
         }
         for (String fileName : ALL) {
             Asset asset = asset(fileName);
-            if (html.contains(asset.servedName)) {
+            if (html.contains("./" + asset.servedName)) {
                 ensureOne(directory, asset);
             }
         }

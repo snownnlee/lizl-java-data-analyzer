@@ -29,8 +29,8 @@ public enum RenderType {
     PUML,
 
     /**
-     * PlantUML 文本嵌进极简 HTML，由浏览器端官方 JS 引擎渲染成 SVG；引擎以 sidecar 形式放产物
-     * 同目录，断网与 {@code file://} 双击都能出图。产物需与 {@code plantuml-*.js} / {@code viz-global-*.js} 同目录。
+     * PlantUML 文本嵌进极简 HTML，由浏览器端官方 JS 引擎渲染成 SVG；引擎默认以 sidecar 放产物
+     * 同目录（开启内联时随产物下发），断网与 {@code file://} 双击都能出图。
      */
     PUML_HTML,
 
@@ -40,8 +40,8 @@ public enum RenderType {
     MERMAID,
 
     /**
-     * Mermaid 图文嵌进 HTML，浏览器端渲染；引擎以 sidecar 形式放产物同目录，
-     * 断网与 {@code file://} 双击都能出图。产物需与 {@code mermaid-*.js} 同目录。
+     * Mermaid 图文嵌进 HTML，浏览器端渲染；引擎默认以 sidecar 放产物同目录
+     * （开启内联时随产物下发），断网与 {@code file://} 双击都能出图。
      */
     MERMAID_HTML
 }

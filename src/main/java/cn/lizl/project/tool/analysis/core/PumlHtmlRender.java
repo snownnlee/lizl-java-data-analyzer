@@ -9,7 +9,8 @@ import java.util.stream.Stream;
 
 /**
  * PUML 转 HTML：PUML 文本嵌入极简 HTML，由浏览器端 PlantUML 官方 JS 引擎渲染成 SVG。
- * 引擎以 sidecar 形式放产物同目录，不联网、双击 {@code file://} 也能出图，本库对 PlantUML 零 Java 依赖。
+ * 引擎默认以 sidecar 放产物同目录，开启 {@code inlineAssets} 时内联；两种形态都不联网、
+ * 双击 {@code file://} 可出图，本库对 PlantUML 零 Java 依赖。
  */
 class PumlHtmlRender extends BaseRender {
 
@@ -17,7 +18,8 @@ class PumlHtmlRender extends BaseRender {
 
     private static final String SHELL_TEMPLATE = "puml-shell.html";
 
-    private static final String[] PLACEHOLDERS = {"${favicon}", "${title}", "${vizFile}", "${pumlFile}", "${pumlArray}"};
+    private static final String[] PLACEHOLDERS = {"${favicon}", "${title}", "${vizTag}", "${pumlTag}",
+            "${pumlName}", "${pumlArray}"};
 
     /** 行分割正则预编译：String.split 每次调用都会重编译 */
     private static final Pattern LINE_BREAK = Pattern.compile("\\r?\\n");
@@ -38,12 +40,14 @@ class PumlHtmlRender extends BaseRender {
     }
 
     @Override
-    protected String renderContent(ClassModel[] classModels) {
+    public String render(ClassModel[] classModels) {
         return HtmlTemplates.fill(HtmlTemplates.load(SHELL_TEMPLATE),
                 PLACEHOLDERS,
                 new String[]{FAVICON_DATA_URI, HtmlTemplates.escapeHtml(buildTitle(classModels)),
-                        FrontendAssets.VIZ_GLOBAL, FrontendAssets.PLANTUML,
-                        toJsStringArray(pumlRender.renderContent(classModels))});
+                        engineScriptTag(FrontendAssets.VIZ_GLOBAL), engineScriptTag(FrontendAssets.PLANTUML),
+                        // 引擎缺失时的提示文案仍写文件名，内联模式下同样可读
+                        FrontendAssets.PLANTUML,
+                        toJsStringArray(pumlRender.render(classModels))});
     }
 
     private static String buildTitle(ClassModel[] classModels) {

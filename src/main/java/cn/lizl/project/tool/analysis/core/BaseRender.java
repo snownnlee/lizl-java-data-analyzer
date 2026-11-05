@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import cn.lizl.project.tool.analysis.util.AssetInliner;
 import cn.lizl.project.tool.analysis.util.FrontendAssets;
 import cn.lizl.project.tool.analysis.util.HtmlTreeAssets;
 
@@ -25,17 +24,28 @@ abstract class BaseRender extends RunningConfigCapable implements IRender {
     }
 
     /**
-     * 内联开关在这里收口，文件通道与 content 通道都经过它：后者不写 sidecar，
-     * 只有内联后取回的内容才自包含。
+     * 资源引用的标签只在这里拼：模板用 {@code ${styleTag}} / {@code ${scriptTag}} 之类的整标签占位符，
+     * 不再手写 {@code <link>}/{@code <script>}，模板改空格或属性顺序不会失配。
      */
-    @Override
-    public final String render(ClassModel[] classModels) {
-        String content = renderContent(classModels);
-        return runningConfig.inlineAssets ? AssetInliner.inline(content) : content;
+    protected final String treeStyleTag(String fileName) {
+        return runningConfig.inlineAssets
+                ? "<style>" + HtmlTreeAssets.text(fileName) + "</style>"
+                : "<link rel=\"stylesheet\" href=\"./" + HtmlTreeAssets.servedName(fileName) + "\">";
     }
 
-    /** 产出产物内容；资源引用是否内联由 {@link #render} 统一处理 */
-    protected abstract String renderContent(ClassModel[] classModels);
+    /** 交互式 HTML 的脚本标签，口径见 {@link #treeStyleTag} */
+    protected final String treeScriptTag(String fileName) {
+        return runningConfig.inlineAssets
+                ? "<script>" + HtmlTreeAssets.text(fileName) + "</script>"
+                : "<script src=\"./" + HtmlTreeAssets.servedName(fileName) + "\"></script>";
+    }
+
+    /** 浏览器端渲染引擎的脚本标签，口径见 {@link #treeStyleTag} */
+    protected final String engineScriptTag(String fileName) {
+        return runningConfig.inlineAssets
+                ? "<script>" + FrontendAssets.readAsText(fileName) + "</script>"
+                : "<script src=\"./" + fileName + "\"></script>";
+    }
 
     @Override
     public File output(ClassModel[] classModels) {
@@ -81,14 +91,9 @@ abstract class BaseRender extends RunningConfigCapable implements IRender {
     private File writeOutputFile(String content, String outputRootDir, String[] outputFileName) {
         File outputFile = Paths.get(outputRootDir, outputFileName).toFile();
         writeUtf8String(content, outputFile);
-        // 内联产物已自包含；模板的错误提示文案仍含引擎文件名，按「内容里出现文件名」判断会误写一份
-        if (!runningConfig.inlineAssets) {
-            // 引用了前端引擎的产物（PUML_HTML / MERMAID_HTML）在同目录补一份 js：
-            // 双击 file:// 打开、断网都能渲染，且同目录多个产物共用一份，不重复落盘。
-            FrontendAssets.ensureReferenced(content, outputFile.getParentFile());
-            // 交互式 HTML（HTML / HTML2）的样式与脚本同样是同目录 sidecar，文件名带内容指纹
-            HtmlTreeAssets.ensureReferenced(content, outputFile.getParentFile());
-        }
+        // 外链模式下把产物引用到的资源补到同目录：双击 file:// 与断网可用，多个产物共用一份
+        FrontendAssets.ensureReferenced(content, outputFile.getParentFile());
+        HtmlTreeAssets.ensureReferenced(content, outputFile.getParentFile());
         return outputFile;
     }
 

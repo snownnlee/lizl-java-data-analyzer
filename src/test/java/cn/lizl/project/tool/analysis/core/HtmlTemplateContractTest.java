@@ -51,12 +51,10 @@ class HtmlTemplateContractTest {
     @BeforeAll
     static void loadTemplate() throws IOException {
         String template = readTemplate();
-        // CSS/JS 以同目录 sidecar 形式分发，由 HtmlRender 按占位符填文件名：占位符拼错不会报错，
+        // 资源标签由渲染端拼（内联与否都在那里决定），模板只留整标签占位符：拼错不会报错，
         // 只是页面静默无样式/按钮失灵
-        assertTrue(template.contains("<link rel=\"stylesheet\" href=\"./${styleFile}\">"),
-                "模板缺少样式资源引用，产物会没有样式");
-        assertTrue(template.contains("<script src=\"./${scriptFile}\"></script>"),
-                "模板缺少脚本资源引用，交互会全部失效");
+        assertTrue(template.contains("${styleTag}"), "模板缺少样式标签占位符，产物会没有样式");
+        assertTrue(template.contains("${scriptTag}"), "模板缺少脚本标签占位符，交互会全部失效");
         // 走生产同一套加载/压缩入口，断言的就是真正会落盘的那份文本
         styleSection = HtmlTreeAssets.text(HtmlTreeAssets.STYLE);
         scriptSection = HtmlTreeAssets.text(HtmlTreeAssets.INTERACTION);

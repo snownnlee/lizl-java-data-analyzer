@@ -133,7 +133,7 @@ public final class InterceptorHttpServiceHandler implements HttpServiceHandler {
             HttpResponses.text(exchange, 404, "not found");
             return;
         }
-        // 产物页用相对路径引用同目录的引擎与样式/脚本（./xxx.js、./xxx.css），
+        // 外链模式的产物页用相对路径引用同目录的引擎与样式/脚本（./xxx.js、./xxx.css），
         // 浏览器会把请求打到 /interceptor/output/xxx.js
         if (FrontendAssets.isAsset(name)) {
             HttpResponses.javascript(exchange, FrontendAssets.read(name));

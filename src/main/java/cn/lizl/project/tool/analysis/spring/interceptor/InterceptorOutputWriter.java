@@ -218,9 +218,8 @@ final class InterceptorOutputWriter {
         try {
             File outputFile = new File(entry.rootDir, entry.fileName);
             CommonUtil.writeUtf8String(entry.content, outputFile);
-            // 产物页相对引用同目录引擎：首次写该目录时补一份，之后复用
+            // 外链模式：产物引用到的引擎与样式/脚本补到同目录，首次写该目录时落一份，之后复用
             FrontendAssets.ensureReferenced(entry.content, outputFile.getParentFile());
-            // 交互式 HTML 的样式/脚本同样在同目录，文件名带内容指纹
             HtmlTreeAssets.ensureReferenced(entry.content, outputFile.getParentFile());
             written.incrementAndGet();
             recordOutput(entry.fileName, outputFile);

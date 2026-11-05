@@ -29,6 +29,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class InlineAssetsTest {
 
+    /** 4 个模板的全部占位符；模板与渲染端的名字漂移会在这里失败 */
+    private static final String[] PLACEHOLDERS = {"${title}", "${styleTag}", "${scriptTag}", "${content}",
+            "${data}", "${builderTag}", "${favicon}", "${vizTag}", "${pumlTag}", "${pumlName}",
+            "${pumlArray}", "${mermaidTag}", "${mermaidName}", "${diagram}"};
+
     @BeforeEach
     void setUp() {
         TestSupport.resetGlobalConfig();
@@ -81,6 +86,8 @@ class InlineAssetsTest {
         assertTrue(vizIndex >= 0, "viz-global 引擎未内联");
         assertTrue(pumlIndex >= 0, "plantuml 引擎未内联");
         assertTrue(vizIndex < pumlIndex, "viz-global 必须先于 plantuml 加载");
+        assertTrue(html.contains("未找到 " + FrontendAssets.PLANTUML),
+                "引擎缺失的提示文案应保留引擎文件名（占位符被误替换或漏填）");
     }
 
     @Test
@@ -89,8 +96,29 @@ class InlineAssetsTest {
         String html = render(RenderType.MERMAID_HTML, true);
 
         assertFalse(html.contains("src=\"./"), "引擎不应再以外部文件引用");
-        assertTrue(html.indexOf(head(FrontendAssets.readAsText(FrontendAssets.MERMAID))) >= 0,
+        assertTrue(html.contains(head(FrontendAssets.readAsText(FrontendAssets.MERMAID))),
                 "mermaid 引擎未内联");
+        assertTrue(html.contains("未找到 " + FrontendAssets.MERMAID),
+                "引擎缺失的提示文案应保留引擎文件名（占位符被误替换或漏填）");
+    }
+
+    @Test
+    @DisplayName("四种 HTML 产物都不得残留未替换的占位符")
+    void noPlaceholderShouldRemain() {
+        RenderType[] htmlTypes = {RenderType.HTML, RenderType.HTML2,
+                RenderType.PUML_HTML, RenderType.MERMAID_HTML};
+        for (RenderType type : htmlTypes) {
+            assertNoPlaceholder(type + "（外部引用）", render(type, false));
+        }
+        // 内联产物里带着 js 原文，其中可能有模板字面量的 ${...}，只能按占位符名逐个比对
+        assertNoPlaceholder("HTML2（内联）", render(RenderType.HTML2, true));
+        assertNoPlaceholder("PUML_HTML（内联）", render(RenderType.PUML_HTML, true));
+    }
+
+    private static void assertNoPlaceholder(String scene, String html) {
+        for (String placeholder : PLACEHOLDERS) {
+            assertFalse(html.contains(placeholder), scene + " 残留未替换的占位符 " + placeholder);
+        }
     }
 
     @Test
@@ -102,6 +130,19 @@ class InlineAssetsTest {
         assertNotNull(names, "输出目录不可读");
         assertEquals(1, names.length, "内联后不应再写 sidecar：" + Arrays.toString(names));
         assertEquals(file.getName(), names[0], "目录里应只剩产物自身");
+    }
+
+    @Test
+    @DisplayName("提示文案里的引擎名不算引用：不会因此补 sidecar")
+    void errorTextShouldNotBeTreatedAsReference(@TempDir Path outputDir) {
+        String content = "未找到 " + FrontendAssets.MERMAID + "，请确认它与本文件在同一目录";
+
+        FrontendAssets.ensureReferenced(content, outputDir.toFile());
+        HtmlTreeAssets.ensureReferenced(content, outputDir.toFile());
+
+        String[] names = outputDir.toFile().list();
+        assertNotNull(names, "输出目录不可读");
+        assertEquals(0, names.length, "只出现文件名、没有 ./ 引用，不应补 sidecar：" + Arrays.toString(names));
     }
 
     @Test
