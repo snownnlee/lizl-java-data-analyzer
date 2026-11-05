@@ -140,7 +140,7 @@ class PumlRender extends BasePumlRender {
     private void appendFieldLines(ClassBody body, ClassModel owner, String bodyOwnerId, RenderContext context) {
         for (FieldModel fieldModel : owner.fieldModels) {
             if (fieldModel instanceof FieldModel.InfoFieldModel) {
-                body.appendRow(wrapAndColorize(COLOR_WARN, ((FieldModel.InfoFieldModel) fieldModel).info, INFO_WRAP_WIDTH));
+                body.appendRow(wrapEscapedColorize(COLOR_WARN, ((FieldModel.InfoFieldModel) fieldModel).info, INFO_WRAP_WIDTH));
                 continue;
             }
             if (fieldModel.sourceField == null) {
@@ -166,7 +166,7 @@ class PumlRender extends BasePumlRender {
                         ? ((ClassModel.LinkClassModel) superClassModel).originClassModel
                         : superClassModel) + " ==");
         if (superClassModel instanceof ClassModel.InfoClassModel) {
-            body.appendRow(wrapAndColorize(COLOR_WARN, ((ClassModel.InfoClassModel) superClassModel).info, INFO_WRAP_WIDTH));
+            body.appendRow(wrapEscapedColorize(COLOR_WARN, ((ClassModel.InfoClassModel) superClassModel).info, INFO_WRAP_WIDTH));
             return;
         }
         if (superClassModel instanceof ClassModel.LinkClassModel) {

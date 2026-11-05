@@ -71,7 +71,9 @@ public final class TemplateCompressor {
     /**
      * 去掉 HTML 骨架每行的行首空白并把 CRLF 归一为 LF。换行本身保留：普通流内容里换行等价于一个空格。
      *
-     * <p>{@code <pre>}/{@code <textarea>} 不能这样处理，{@code TemplateCompressorTest} 会断言模板里没有它们。
+     * <p>{@code <pre>}/{@code <textarea>} 不能这样处理：两个骨架模板由 {@code TemplateCompressorTest}
+     * 断言不含它们；两个 shell 模板里的 {@code <pre>} 目前都是单行内容，父层缩进被剥掉不影响显示，
+     * 一旦出现多行 {@code <pre>} 就需要在此处另行保护。
      */
     public static String stripLineIndent(String html) {
         StringBuilder out = new StringBuilder(html.length());

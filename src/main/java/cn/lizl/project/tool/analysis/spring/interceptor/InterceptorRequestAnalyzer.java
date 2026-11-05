@@ -1,5 +1,6 @@
 package cn.lizl.project.tool.analysis.spring.interceptor;
 
+import cn.lizl.project.tool.analysis.JavaDataAnalyzer;
 import cn.lizl.project.tool.analysis.api.OutputContentReceiver;
 import cn.lizl.project.tool.analysis.api.RenderType;
 import cn.lizl.project.tool.analysis.api.RunningConfigurer;
@@ -14,8 +15,9 @@ import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 /**
- * 单个请求的分析执行器：在请求线程上同步做分析建模与渲染（方案 A 的既定口径，用 maxNodeCount /
- * timeout 配置兜底延迟），产物内容交给异步写盘器，文件名按请求自持、不碰共享配置。
+ * 单个请求的分析执行器：默认在请求线程上同步建模与渲染（用 maxNodeCount / timeout 配置兜底延迟），
+ * 开启 {@code interceptor.async-analysis} 后改为投递到独立线程；产物内容一律交给异步写盘器，
+ * 文件名按请求自持、不碰共享配置。
  *
  * <p>每次分析新建 RunningConfigurer：共享实例的 add/clear 在并发请求下会串目标，属于必选动作而非浪费。
  */
@@ -49,6 +51,14 @@ final class InterceptorRequestAnalyzer {
 
     private final AtomicLong sequence = new AtomicLong();
 
+    /**
+     * 每个分析线程复用同一个 configurer：省掉每次请求的实例、渲染器与包规则数组重建。
+     *
+     * <p>只能按线程持有，不能跨线程共享（{@link RunningConfigurer} 内部攒目标，并发会串）。
+     * 复用时每次都要 {@code reset(true)} 回到全局快照并清空目标，否则上一次的通道配置与目标会残留。
+     */
+    private final ThreadLocal<RunningConfigurer> configurerHolder = new ThreadLocal<>();
+
     InterceptorRequestAnalyzer(InterceptorProperties properties, InterceptorControl control) {
         this.properties = properties;
         this.control = control;
@@ -61,9 +71,27 @@ final class InterceptorRequestAnalyzer {
      * @param args       参数下标 → 已解析的参数值，来自捕获包装器
      */
     void analyze(String handler, String requestUri, Map<Integer, Object> args) {
+        // 先做快照：异步执行时调用方的 Map 可能已被复用或清空
+        Map<Integer, Object> sortedArgs = new TreeMap<>(args);
+        if (control.isAsyncAnalysis()) {
+            control.submitAnalysis(() -> doAnalyze(handler, requestUri, sortedArgs));
+            return;
+        }
+        doAnalyze(handler, requestUri, sortedArgs);
+    }
+
+    /**
+     * 在调用线程上直接分析，不看 {@code async-analysis}：WebFlux 通道已在自己的线程池里跑，
+     * 再套一层异步只会多一次排队。
+     */
+    void analyzeNow(String handler, String requestUri, Map<Integer, Object> args) {
+        doAnalyze(handler, requestUri, new TreeMap<>(args));
+    }
+
+    private void doAnalyze(String handler, String requestUri, Map<Integer, Object> sortedArgs) {
+        RunningConfigurer configurer = null;
         try {
-            Map<Integer, Object> sortedArgs = new TreeMap<>(args);
-            RunningConfigurer configurer = buildConfigurer();
+            configurer = buildConfigurer();
             boolean hasTarget = false;
             for (Object arg : sortedArgs.values()) {
                 if (arg != null && !isFrameworkType(arg.getClass())) {
@@ -83,17 +111,28 @@ final class InterceptorRequestAnalyzer {
             });
         } catch (Throwable throwable) {
             log.log(Level.WARNING, "请求分析失败：" + requestUri + " (" + handler + ")", throwable);
+        } finally {
+            // 线程池线程会长期存活：不清掉就把上一次的目标对象图钉在内存里
+            if (configurer != null) {
+                configurer.clear();
+            }
         }
     }
 
     /**
-     * 按本通道配置构建 RunningConfigurer：全局配置打底，然后应用 {@code interceptor.*} 的全部配置项。
+     * 取本线程的 RunningConfigurer：全局配置打底 + {@code interceptor.*} 覆盖 + 运行期渲染类型。
      *
-     * <p>不再引用任何其它通道的配置——本方法的结果只取决于 {@code InterceptorProperties} 与全局默认。
-     * 包规则在 {@link InterceptorProperties#newRunningConfigurer()} 里已按「非空 → 追加合并」处理。
+     * <p>复用同一实例，所以每次先 {@code reset(true)}（回全局快照并清空目标）再重放通道配置——
+     * 运行期改配置仍然立即生效，省掉的只是实例、渲染器与包规则数组的重复创建。
      */
     RunningConfigurer buildConfigurer() {
-        RunningConfigurer configurer = properties.newRunningConfigurer();
+        RunningConfigurer configurer = configurerHolder.get();
+        if (configurer == null) {
+            configurer = JavaDataAnalyzer.runningConfigurer();
+            configurerHolder.set(configurer);
+        }
+        configurer.reset(true);
+        properties.applyTo(configurer);
         // 渲染类型以控制器的运行时值为准（端点可热切），它初始值就是 interceptor.render-type
         RenderType runtimeRenderType = control.getRenderType();
         if (runtimeRenderType != null) {

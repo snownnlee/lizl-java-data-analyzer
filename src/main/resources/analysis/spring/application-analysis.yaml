@@ -36,6 +36,7 @@ cn:
       server:
         enable: true                                # 是否启动 HTTP 服务；默认 false，需显式开启（enable / enabled 两种写法都认）
         port: 18110                                 # 监听端口；不配置用 18080，0 = 由系统分配（端口被占用会直接让宿主启动失败）
+        threads: 4                                  # HTTP 请求线程数；不配置用 4，小于 1 会让宿主启动失败（rebuild 等重分析也占这个池）
         bind-address: 127.0.0.1                     # 绑定地址；默认 127.0.0.1 仅本机可访问，生产环境勿改 0.0.0.0
         path-prefix: /lizl-java-data-analyzer       # 所有端点的公共路径前缀；不配置用 /lizl-java-data-analyzer
         token: change-me-in-prod                    # 访问令牌；配置后须带 ?token=xxx 或请求头 X-Analysis-Token（会进浏览器历史，优先用 Basic）
@@ -75,7 +76,7 @@ cn:
           - org.junit.
           - org.mockito.
         common-include-packages:                    # 额外纳入分析的包；判定在全局 exclude 之前，能抢回被默认排除的包
-          - org.springframework.           # 框架设施：ApplicationContext 等字段会拖进整个容器对象图
+          - org.springframework.           # 强制纳入的示例：判在全局 exclude 之前，可抢回被默认排除的包（按需替换）
         analyze-static-field: false                 # 是否分析静态字段；不配置用全局默认 false
         should-analyze-null-value: true             # 是否分析值为 null 的字段；默认 true（关掉可让报告只剩有值的字段）
         max-depth: 7                                # 最大分析深度；默认 7；超过该深度只显示类型并提示「已达到最大分析深度」
@@ -106,6 +107,7 @@ cn:
         output-retention: 3000                      # 每个日期目录各自保留的产物上限；默认 3000，≤0 不限制
         output-root-dir: ./analysis-output/interceptor  # 本通道产物根目录（其下按日期建子目录）；默认 ~/cn.lizl.project.tool.analysis-result/interceptor
         render-type: HTML2                          # 产物格式，不配置则默认 HTML2
+        async-analysis: false                       # 分析是否放独立线程执行；默认 false（请求线程同步分析）；开启后请求上下文已结束，request scope 不可用；只影响 MVC，WebFlux 始终在专用线程分析
         inline-assets: false                        # 是否把样式/脚本内联成单文件自包含产物；默认 false（同目录 sidecar，多产物共用一份）；开启后体积变大（HTML2 约 22 KB，PUML_HTML 约 5 MB）
         # 包规则同上：非空才接受、空白项过滤、与全局规则叠加（不读 beans 段的规则）
         common-exclude-packages:                    # 追加的排除包，只作用于本通道产物

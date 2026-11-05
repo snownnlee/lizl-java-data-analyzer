@@ -249,6 +249,29 @@ public final class HttpAnalysisServer {
         }
     }
 
+    /** 日志用 URI：抹掉 {@code token} 参数的值，其余参数原样保留（排障要看 container/rebuild 等） */
+    static String logUri(URI uri) {
+        String path = uri.getRawPath() == null ? "" : uri.getRawPath();
+        String rawQuery = uri.getRawQuery();
+        if (rawQuery == null || rawQuery.isEmpty()) {
+            return path;
+        }
+        StringBuilder out = new StringBuilder(path).append('?');
+        String[] pairs = rawQuery.split("&", -1);
+        for (int i = 0; i < pairs.length; i++) {
+            if (i > 0) {
+                out.append('&');
+            }
+            out.append(isTokenParameter(pairs[i]) ? "token=***" : pairs[i]);
+        }
+        return out.toString();
+    }
+
+    private static boolean isTokenParameter(String pair) {
+        return pair.length() >= 5 && pair.regionMatches(true, 0, "token", 0, 5)
+                && (pair.length() == 5 || pair.charAt(5) == '=');
+    }
+
     /** 日志用的基础地址：不带 token（token 进访问日志/采集系统就是留了一份明文凭证） */
     private String logUrl(String path) {
         return "http://" + displayHost() + ':' + getBoundPort() + pathPrefix + path;
@@ -397,7 +420,7 @@ public final class HttpAnalysisServer {
             }
             handler.handle(exchange, relativePath);
         } catch (Throwable throwable) {
-            log.log(Level.WARNING, "处理请求失败：" + exchange.getRequestURI(), throwable);
+            log.log(Level.WARNING, "处理请求失败：" + logUri(exchange.getRequestURI()), throwable);
             try {
                 HttpResponses.text(exchange, 500, "internal server error");
             } catch (IOException ignored) {
@@ -597,12 +620,14 @@ public final class HttpAnalysisServer {
         HttpResponses.text(exchange, 401, "unauthorized");
     }
 
+    /** query 与 header 两种携带方式任一正确即通过：query 里有错值不应遮蔽正确的 header */
     private boolean matchesToken(HttpExchange exchange) {
-        String provided = HttpRequests.queryParameters(exchange).get("token");
-        if (provided == null) {
-            provided = exchange.getRequestHeaders().getFirst(TOKEN_HEADER);
+        String queryToken = HttpRequests.queryParameters(exchange).get("token");
+        if (queryToken != null && constantTimeEquals(token, queryToken)) {
+            return true;
         }
-        return provided != null && constantTimeEquals(token, provided);
+        String headerToken = exchange.getRequestHeaders().getFirst(TOKEN_HEADER);
+        return headerToken != null && constantTimeEquals(token, headerToken);
     }
 
     private boolean matchesBasicCredential(HttpExchange exchange) {

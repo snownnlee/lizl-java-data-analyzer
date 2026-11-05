@@ -162,6 +162,25 @@ class InterceptorControlTest {
     }
 
     @Test
+    @DisplayName("异步分析开关：默认关，端点可热切，状态里可见")
+    void shouldHotSwitchAsyncAnalysis() {
+        InterceptorControl control = new InterceptorControl(baseProperties(true));
+        try {
+            assertFalse(control.isAsyncAnalysis(), "默认应同步分析");
+            assertEquals(Boolean.FALSE, control.interceptorState().get("asyncAnalysis"));
+
+            Map<String, Object> state = control.updateInterceptorState(null, null, null, null, true);
+            assertEquals(Boolean.TRUE, state.get("asyncAnalysis"));
+            assertTrue(control.isAsyncAnalysis());
+
+            control.updateInterceptorState(null, null, null, null, false);
+            assertFalse(control.isAsyncAnalysis(), "应能切回同步");
+        } finally {
+            control.shutdown();
+        }
+    }
+
+    @Test
     @DisplayName("保留策略按目录独立计算：目录 A/B 各自保留，互不挤占")
     void shouldEnforceRetentionPerDirectory() throws Exception {
         InterceptorProperties properties = baseProperties(true);

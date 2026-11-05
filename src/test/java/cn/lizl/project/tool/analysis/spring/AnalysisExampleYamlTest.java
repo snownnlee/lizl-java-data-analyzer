@@ -48,6 +48,7 @@ class AnalysisExampleYamlTest {
         assertTrue(server.getPort() != null && server.getPort() > 0,
                 "server.port 应为正整数，实际：" + server.getPort());
         assertEquals("127.0.0.1", server.getBindAddress());
+        assertEquals(Integer.valueOf(4), server.getThreads(), "server.threads");
         assertEquals("/lizl-java-data-analyzer", server.getPathPrefix());
         assertEquals("admin", server.getAuthUser());
 
@@ -74,6 +75,7 @@ class AnalysisExampleYamlTest {
         assertEquals(Integer.valueOf(64), interceptor.getOutputQueueCapacity());
         assertEquals(Integer.valueOf(3000), interceptor.getOutputRetention());
         assertEquals("./analysis-output/interceptor", interceptor.getOutputRootDir());
+        assertFalse(interceptor.isAsyncAnalysis(), "interceptor.async-analysis 默认同步分析");
         // interceptor 段不继承 beans 的包规则，因此自带完整一套；与 beans 段有重复前缀是设计使然
         assertTrue(interceptor.getCommonExcludePackages().length >= 5,
                 "interceptor 段应自带完整的排除清单，实际：" + interceptor.getCommonExcludePackages().length);

@@ -26,7 +26,12 @@ public class BeansProperties {
     /** 配置项前缀。必须是编译期常量：注解属性只接受常量表达式。 */
     public static final String PREFIX = "cn.lizl.java-data-analyzer.beans";
 
-    /** 是否启用 bean 采集通道（是否注册采集处理器）。默认关闭，需显式配 true。 */
+    /**
+     * 是否启用 bean 采集通道（是否注册采集处理器）。默认关闭，需显式配 true。
+     *
+     * <p>装配与否由启动期条件直接读 Environment（{@code enable}/{@code enabled} 都认），本字段只用于
+     * 绑定与文档；运行期改它不会重装通道。
+     */
     private boolean enable = false;
 
     /** true：每个 Bean 初始化后立即登记；false：全部单例就绪后统一登记。 */

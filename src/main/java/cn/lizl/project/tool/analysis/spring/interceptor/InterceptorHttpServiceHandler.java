@@ -22,7 +22,7 @@ import java.util.Map;
  *
  * <p>端点：{@code GET /interceptor} 管理页、{@code GET /interceptor/state} 状态 JSON、
  * {@code GET /interceptor/list} 产物名列表、{@code GET /interceptor/output/{name}} 产物内容、
- * {@code POST /interceptor?active=&include=&exclude=&renderType=} 热更新（缺省参数表示不变，
+ * {@code POST /interceptor?active=&include=&exclude=&renderType=&asyncAnalysis=} 热更新（缺省参数表示不变，
  * include/exclude 传空串表示清空规则，多个规则用逗号分隔）。
  *
  * <p>本类属于拦截器通道（Spring 特性），因此放在 {@code spring.interceptor} 而<b>不是</b>通用 http 包；
@@ -117,8 +117,12 @@ public final class InterceptorHttpServiceHandler implements HttpServiceHandler {
         List<String> include = parsePathRules(parameters, "include");
         List<String> exclude = parsePathRules(parameters, "exclude");
         String renderType = parameters.get("renderType");
+        Boolean asyncAnalysis = parameters.containsKey("asyncAnalysis")
+                ? Boolean.parseBoolean(parameters.get("asyncAnalysis"))
+                : null;
         try {
-            HttpResponses.jsonState(exchange, control.updateInterceptorState(active, include, exclude, renderType));
+            HttpResponses.jsonState(exchange,
+                    control.updateInterceptorState(active, include, exclude, renderType, asyncAnalysis));
         } catch (IllegalArgumentException e) {
             HttpResponses.text(exchange, 400, String.valueOf(e.getMessage()));
         }

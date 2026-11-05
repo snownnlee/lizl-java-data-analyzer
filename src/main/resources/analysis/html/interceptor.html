@@ -473,6 +473,7 @@
                 <option value="MERMAID">Mermaid 文本</option>
                 <option value="MERMAID_HTML">Mermaid 图页</option>
             </select>
+            <label class="history-toggle"><input type="checkbox" id="asyncToggle">异步分析</label>
             <button id="applyBtn" class="apply-btn" type="button">应用规则</button>
             <button id="refreshBtn" class="apply-btn" type="button">刷新</button>
             <label class="history-toggle"><input type="checkbox" id="historyToggle">含历史</label>
@@ -510,6 +511,7 @@
         const applyBtn = document.getElementById('applyBtn');
         const refreshBtn = document.getElementById('refreshBtn');
         const renderSelect = document.getElementById('renderSelect');
+        const asyncToggle = document.getElementById('asyncToggle');
         const historyToggle = document.getElementById('historyToggle');
         const searchInput = document.getElementById('searchInput');
         const visibleCount = document.getElementById('visibleCount');
@@ -586,6 +588,9 @@
             // 与两个输入框同理：轮询不得覆盖用户正在操作的下拉选择
             if (document.activeElement !== renderSelect) {
                 renderSelect.value = state.renderType || 'HTML';
+            }
+            if (document.activeElement !== asyncToggle) {
+                asyncToggle.checked = !!state.asyncAnalysis;
             }
         }
 
@@ -681,7 +686,8 @@
                 const state = await fetchJson(postUrl({
                     include: includeInput.value.trim(),
                     exclude: excludeInput.value.trim(),
-                    renderType: renderSelect.value
+                    renderType: renderSelect.value,
+                    asyncAnalysis: asyncToggle.checked
                 }), { method: 'POST' });
                 renderState(state);
                 showOpStatus('规则已应用（仅内存态）', false);

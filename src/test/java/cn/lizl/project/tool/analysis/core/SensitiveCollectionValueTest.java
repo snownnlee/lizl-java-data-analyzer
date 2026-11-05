@@ -80,6 +80,18 @@ class SensitiveCollectionValueTest {
     }
 
     @Test
+    @DisplayName("超长 key：敏感词落在截断点之后也要脱敏（判定用原始 key）")
+    void shouldMaskSensitiveKeyBeyondTruncation() {
+        // key 截断到 8 字符后不再含 "token"，value 6 字符会被完整展示
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("aaaaaaaaaatoken", "sekret");
+
+        String text = CommonUtil.getStringFrom(headers, 8, true);
+        assertFalse(text.contains("sekret"), "key 被截断后漏脱敏：" + text);
+        assertTrue(text.contains("***"), "应显示脱敏占位：" + text);
+    }
+
+    @Test
     @DisplayName("嵌套容器：脱敏标志沿递归传递到内层 Map")
     void shouldMaskSensitiveEntryInNestedContainer() {
         Map<String, Object> outer = new LinkedHashMap<>();

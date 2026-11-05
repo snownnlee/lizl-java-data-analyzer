@@ -272,9 +272,15 @@ class HtmlRender extends BaseRender {
         result.append("<b class='").append(Tokens.FIELD_INFO_NAME).append("'>").append(escapeContent(fieldName)).append("</b>");
         result.append("<i class='").append(Tokens.FIELD_INFO_TYPE).append("'>").append(escapeContent(fieldType)).append("</i>");
         if (fieldValue != null) {
-            result.append("<span class='").append(Tokens.FIELD_INFO_EQUAL).append("'>=").append("</span>");
             // 敏感字段（password/token/secret 等）只挡值不挡结构：报告里渲染 ***，分析与展开照常
-            if (runningConfig.maskSensitiveValues && CommonUtil.isSensitiveName(fieldName)) {
+            boolean masked = runningConfig.maskSensitiveValues && CommonUtil.isSensitiveName(fieldName);
+            int size = masked || renderValue ? -1 : sizeOf(fieldValue);
+            boolean hasInline = !renderValue && simpleViewValues != null && !simpleViewValues.isEmpty();
+            // 与 HTML2 的 hasFieldValue 同口径：脱敏/字面量/大小/内联值都没有时不落孤立等号
+            if (masked || renderValue || size >= 0 || hasInline) {
+                result.append("<span class='").append(Tokens.FIELD_INFO_EQUAL).append("'>=").append("</span>");
+            }
+            if (masked) {
                 result.append("<span class='").append(Tokens.FIELD_INFO_VALUE).append("'>")
                         .append(escapeContent(CommonUtil.SENSITIVE_VALUE_MARK)).append("</span>");
                 result.append("</span>");
@@ -287,19 +293,11 @@ class HtmlRender extends BaseRender {
                         runningConfig.analyzeOneShotCollections));
                 result.append("<span class='").append(Tokens.FIELD_INFO_VALUE).append("'>").append(valueString).append("</span>");
             } else {
-                int size = -1;
-                if (fieldValue.getClass().isArray()) {
-                    size = Array.getLength(fieldValue);
-                } else if (fieldValue instanceof Collection) {
-                    size = ((Collection<?>) fieldValue).size();
-                } else if (fieldValue instanceof Map) {
-                    size = ((Map<?, ?>) fieldValue).size();
-                }
                 if (size >= 0) {
                     result.append("<i class='").append(Tokens.FIELD_INFO_SIZE).append("'>(").append(size).append(")</i>");
                 }
                 // 简单视图下被包排除的集合元素值内联展示，口径与 PUML 的 [size] = [v1, v2] 一致
-                if (simpleViewValues != null && !simpleViewValues.isEmpty()) {
+                if (hasInline) {
                     String joined = simpleViewInlineText(simpleViewValues);
                     result.append("<span class='").append(Tokens.FIELD_INFO_EQUAL).append("'>=")
                             .append("</span>");
@@ -310,6 +308,20 @@ class HtmlRender extends BaseRender {
         }
         result.append("</span>");
         result.append("</pre>");
+    }
+
+    /** 容器大小：数组/集合/Map 返回元素数，其他返回 -1（与 HTML2 落 size 的口径一致） */
+    private static int sizeOf(Object value) {
+        if (value.getClass().isArray()) {
+            return Array.getLength(value);
+        }
+        if (value instanceof Collection) {
+            return ((Collection<?>) value).size();
+        }
+        if (value instanceof Map) {
+            return ((Map<?, ?>) value).size();
+        }
+        return -1;
     }
 
     /**

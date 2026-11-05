@@ -1,6 +1,5 @@
 package cn.lizl.project.tool.analysis.spring.interceptor;
 
-import cn.lizl.project.tool.analysis.JavaDataAnalyzer;
 import cn.lizl.project.tool.analysis.api.AnalysisMode;
 import cn.lizl.project.tool.analysis.api.RenderType;
 import cn.lizl.project.tool.analysis.api.RunningConfigurer;
@@ -28,6 +27,7 @@ public class InterceptorProperties {
      * 是否装配本通道：包装 handler 参数解析器 + 注册控制 Bean + 挂载 {@code /interceptor} 端点。
      *
      * <p><b>只在启动期生效</b>——装配了就无法在运行期卸载，运行期开关是 {@link #active}。
+     * 装配与否由启动期条件直接读 Environment（{@code enable}/{@code enabled} 都认），本字段只用于绑定与文档。
      */
     private boolean enable = false;
 
@@ -61,6 +61,17 @@ public class InterceptorProperties {
      * 渲染类型，默认值 HTML2。
      */
     private RenderType renderType = RenderType.HTML2;
+
+    /**
+     * 分析是否放独立线程执行，默认 {@code false}（请求线程同步分析）。
+     *
+     * <p>开启后请求线程立即返回，代价是分析时请求上下文已结束：request scope、
+     * {@code RequestContextHolder} 不可用，request-scoped 代理的字段可能读不到。
+     * 分析线程固定 1 个，队列满时回落到请求线程同步执行（不丢产物）。
+     *
+     * <p>只影响 MVC 宿主：WebFlux 阻塞事件循环会拖垮同线程的全部连接，本来就在专用线程分析。
+     */
+    private boolean asyncAnalysis;
 
     /** 产物是否内联样式/脚本资源：单文件自包含但体积更大；默认 false，按同目录 sidecar 分发 */
     private Boolean inlineAssets;
@@ -108,12 +119,11 @@ public class InterceptorProperties {
     private static final Pattern WHITESPACE_ONLY = Pattern.compile("\\s*");
 
     /**
-     * 按本通道配置新建一个 RunningConfigurer：全局配置打底，本通道显式配置的项覆盖。
+     * 把本通道配置重放到 {@code configurer} 上（覆盖式：只改本通道显式配置的项）。
      *
-     * <p>每次分析都要新建：它内部持有待分析对象列表，共享实例会被 {@code clear()} 抹掉别处。
+     * <p>调用方负责先把实例重置回全局快照（{@code reset(true)}），否则上一次的通道配置会残留。
      */
-    public RunningConfigurer newRunningConfigurer() {
-        RunningConfigurer configurer = JavaDataAnalyzer.runningConfigurer();
+    public void applyTo(RunningConfigurer configurer) {
         checkAndSet(outputRootDir, configurer::setOutputRootDir);
         applyPackages(commonExcludePackages, configurer::addCommonExcludePackages);
         applyPackages(commonIncludePackages, configurer::addCommonIncludePackages);
@@ -133,7 +143,6 @@ public class InterceptorProperties {
         checkAndSet(maskSensitiveValues, configurer::setMaskSensitiveValues);
         checkAndSet(enableCollectionSimpleView, configurer::setEnableCollectionSimpleView);
         checkAndSet(analyzeOneShotCollections, configurer::setAnalyzeOneShotCollections);
-        return configurer;
     }
 
     private <T> void checkAndSet(T value, Consumer<T> setter) {

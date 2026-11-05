@@ -53,6 +53,9 @@ public class ServerAutoConfiguration {
         if (properties.getBindAddress() != null) {
             server.setBindAddress(properties.getBindAddress());
         }
+        if (properties.getThreads() != null) {
+            server.setThreads(properties.getThreads());
+        }
         if (properties.getPathPrefix() != null) {
             server.setPathPrefix(properties.getPathPrefix());
         }

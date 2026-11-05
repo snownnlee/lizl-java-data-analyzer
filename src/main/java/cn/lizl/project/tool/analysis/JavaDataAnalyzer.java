@@ -11,8 +11,8 @@ import cn.lizl.project.tool.analysis.http.HttpAnalysisServer;
 /**
  * 库的唯一入口。
  *
- * <p>两条互不依赖的通道：手工调用产出 HTML / PUML 文件；HTTP 服务基于 JDK 原生 HttpServer，不依赖
- * Spring 与任何 Web 容器。
+ * <p>两条互不依赖的通道：手工调用产出 6 种产物形态（折叠 HTML、PlantUML、Mermaid 及其浏览器图页），
+ * 可写文件或直接取内容；HTTP 服务基于 JDK 原生 HttpServer，不依赖 Spring 与任何 Web 容器。
  */
 public final class JavaDataAnalyzer {
 

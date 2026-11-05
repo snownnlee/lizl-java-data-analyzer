@@ -186,7 +186,8 @@ final class ReactiveArgumentCaptureInstaller implements BeanPostProcessor {
                 }
                 String handler = method.getDeclaringClass().getSimpleName() + "#" + method.getName();
                 InterceptorRequestAnalyzer analyzer = control.analyzer();
-                analysisExecutor.execute(() -> analyzer.analyze(handler, requestUri, new HashMap<>(captured)));
+                // analyzeNow 而非 analyze：本通道已经离开事件循环，不再受 interceptor.async-analysis 影响
+                analysisExecutor.execute(() -> analyzer.analyzeNow(handler, requestUri, new HashMap<>(captured)));
             } catch (Exception ignored) {
                 // 只隔离 Exception，捕获与分析绝不影响请求本身；Error（OOM 等）自然穿透
             }

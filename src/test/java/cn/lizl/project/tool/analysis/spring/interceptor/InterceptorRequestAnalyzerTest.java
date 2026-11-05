@@ -1,6 +1,7 @@
 package cn.lizl.project.tool.analysis.spring.interceptor;
 
 import cn.lizl.project.tool.analysis.api.RenderType;
+import cn.lizl.project.tool.analysis.api.RunningConfigurer;
 import cn.lizl.project.tool.analysis.support.TestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -10,9 +11,13 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -191,6 +196,104 @@ class InterceptorRequestAnalyzerTest {
                     "空数组等价于未配置，不应变成「清空全部规则」以外的任何语义");
         } finally {
             control.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("开启异步分析：请求线程只做投递，产物最终落盘")
+    void shouldAnalyzeAsynchronously() {
+        InterceptorProperties properties = baseProperties();
+        properties.setAsyncAnalysis(true);
+        InterceptorControl control = new InterceptorControl(properties);
+        try {
+            InterceptorRequestAnalyzer analyzer = new InterceptorRequestAnalyzer(properties, control);
+
+            Map<Integer, Object> args = new HashMap<>();
+            args.put(0, new Sample());
+            analyzer.analyze("SampleController#handle", "/sample/async", args);
+
+            InterceptorControlTest.awaitOrFail(
+                    () -> listProducts().length >= 1 && listProducts()[0].length() > 0,
+                    "异步分析应最终落盘");
+            assertEquals(1, listProducts().length, "只应有一个产物文件");
+            assertTrue(listProducts()[0].getName().contains("_sample_async"),
+                    "文件名应含 URI 摘要：" + listProducts()[0].getName());
+        } finally {
+            control.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("同一线程复用同一 configurer，每次重放当前配置")
+    void shouldReuseConfigurerPerThread() {
+        InterceptorProperties properties = baseProperties();
+        InterceptorControl control = new InterceptorControl(properties);
+        try {
+            InterceptorRequestAnalyzer analyzer = new InterceptorRequestAnalyzer(properties, control);
+
+            properties.setAnalysisTimeoutMillis(1500);
+            RunningConfigurer first = analyzer.buildConfigurer();
+            assertEquals(1500, first.analyzingTimeoutMillis());
+
+            properties.setAnalysisTimeoutMillis(0);
+            RunningConfigurer second = analyzer.buildConfigurer();
+            assertSame(first, second, "同一线程应复用同一实例");
+            assertEquals(0, second.analyzingTimeoutMillis(), "复用时必须重放当前配置，不能沿用上一次");
+        } finally {
+            control.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("不同线程各持一个 configurer，互不共享")
+    void shouldNotShareConfigurerAcrossThreads() throws Exception {
+        InterceptorProperties properties = baseProperties();
+        InterceptorControl control = new InterceptorControl(properties);
+        try {
+            InterceptorRequestAnalyzer analyzer = new InterceptorRequestAnalyzer(properties, control);
+
+            RunningConfigurer mainThread = analyzer.buildConfigurer();
+            AtomicReference<RunningConfigurer> otherThread = new AtomicReference<>();
+            Thread thread = new Thread(() -> otherThread.set(analyzer.buildConfigurer()));
+            thread.start();
+            thread.join(5000);
+
+            assertNotNull(otherThread.get(), "子线程应拿到自己的实例");
+            assertNotSame(mainThread, otherThread.get(), "configurer 不得跨线程共享");
+        } finally {
+            control.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("分析结束后清空目标：池化线程不保留上一次的对象图")
+    void shouldClearTargetsAfterAnalyze() {
+        InterceptorProperties properties = baseProperties();
+        InterceptorControl control = new InterceptorControl(properties);
+        try {
+            InterceptorRequestAnalyzer analyzer = new InterceptorRequestAnalyzer(properties, control);
+            // 先拿到本线程实例，analyze 内部会复用同一个
+            RunningConfigurer configurer = analyzer.buildConfigurer();
+
+            Map<Integer, Object> args = new HashMap<>();
+            args.put(0, new Sample());
+            analyzer.analyze("SampleController#handle", "/sample/cleared", args);
+            InterceptorControlTest.awaitOrFail(() -> listProducts().length >= 1, "应有产物落盘");
+
+            assertEquals(0, pendingTargetsOf(configurer), "分析结束后应清空待分析目标");
+        } finally {
+            control.shutdown();
+        }
+    }
+
+    /** 反射读待分析目标数：RunningConfigurer 不对外暴露这个集合 */
+    private static int pendingTargetsOf(RunningConfigurer configurer) {
+        try {
+            java.lang.reflect.Field field = configurer.getClass().getDeclaredField("analyzableCollection");
+            field.setAccessible(true);
+            return ((java.util.Collection<?>) field.get(configurer)).size();
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("读取待分析目标失败", e);
         }
     }
 

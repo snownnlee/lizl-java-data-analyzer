@@ -17,6 +17,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.Socket;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -28,6 +29,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HttpAnalysisServerTest {
@@ -140,6 +142,37 @@ class HttpAnalysisServerTest {
         assertEquals(200, get(PREFIX + "/beans?token=s3cr3t", null).status);
         assertEquals(200, request(PREFIX + "/beans?token=s3cr3t", "POST", null).status);
         assertEquals(200, request(PREFIX + "/beans", "POST", "s3cr3t").status);
+    }
+
+    @Test
+    @DisplayName("query 与 header 任一正确即通过：query 里的错值不遮蔽正确的 header")
+    void shouldAcceptEitherTokenLocation() throws IOException {
+        server.setToken("s3cr3t").start();
+
+        assertEquals(200, request(PREFIX + "/beans?token=wrong", "GET", "s3cr3t").status,
+                "query 错但 header 对时应放行");
+        assertEquals(401, request(PREFIX + "/beans?token=wrong", "GET", "also-wrong").status,
+                "两种携带方式都错时仍应 401");
+    }
+
+    @Test
+    @DisplayName("异常日志用的 URI 抹掉 token 值，其余参数保留")
+    void shouldScrubTokenInLoggedUri() {
+        assertEquals("/bean/alpha?token=***&container=c1",
+                HttpAnalysisServer.logUri(URI.create("/bean/alpha?token=s3cr3t&container=c1")));
+        assertEquals("/bean/alpha?container=c1&token=***",
+                HttpAnalysisServer.logUri(URI.create("/bean/alpha?container=c1&token=s3cr3t")));
+        assertEquals("/bean/alpha?container=c1",
+                HttpAnalysisServer.logUri(URI.create("/bean/alpha?container=c1")));
+        assertEquals("/bean/alpha", HttpAnalysisServer.logUri(URI.create("/bean/alpha")));
+        // 大小写不敏感地识别，输出统一为 token=***（URL 编码的值一并抹掉）
+        assertEquals("/x?token=***", HttpAnalysisServer.logUri(URI.create("/x?TOKEN=a%26b")));
+    }
+
+    @Test
+    @DisplayName("线程数小于 1 时拒绝，避免启动出一个无法处理请求的池")
+    void shouldRejectNonPositiveThreads() {
+        assertThrows(IllegalArgumentException.class, () -> new HttpAnalysisServer().setThreads(0));
     }
 
     @Test

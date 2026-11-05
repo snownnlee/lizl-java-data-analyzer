@@ -73,6 +73,10 @@ class InterceptorEndpointTest {
             assertEquals(Boolean.FALSE, provider.lastActive);
             assertEquals(Collections.singletonList("/api/**"), provider.lastInclude);
             assertEquals(Collections.emptyList(), provider.lastExclude);
+
+            String async = bodyOf(baseUrl + "/interceptor?asyncAnalysis=true", "POST");
+            assertTrue(async.contains("\"asyncAnalysis\":true"), "asyncAnalysis 应生效：" + async);
+            assertEquals(Boolean.TRUE, provider.lastAsyncAnalysis);
         } finally {
             server.stop();
         }
@@ -161,6 +165,8 @@ class InterceptorEndpointTest {
 
         List<String> lastExclude;
 
+        Boolean lastAsyncAnalysis;
+
         RecordingProvider(Map<String, Object> state) {
             this.state = state;
         }
@@ -185,6 +191,17 @@ class InterceptorEndpointTest {
                 state.put("excludePaths", excludePaths);
             }
             return state;
+        }
+
+        @Override
+        public Map<String, Object> updateInterceptorState(Boolean active, List<String> includePaths,
+                                                          List<String> excludePaths, String renderType,
+                                                          Boolean asyncAnalysis) {
+            this.lastAsyncAnalysis = asyncAnalysis;
+            if (asyncAnalysis != null) {
+                state.put("asyncAnalysis", asyncAnalysis);
+            }
+            return updateInterceptorState(active, includePaths, excludePaths);
         }
 
         @Override

@@ -64,7 +64,7 @@ HTML 产物默认把样式/脚本放同目录（多产物共用一份、浏览�
 |---|---|
 | `server.*` | HTTP 服务的端口、路径、鉴权（两个通道共用） |
 | `beans.*` | Bean 采集：采集谁、怎么分析、产物放哪 |
-| `interceptor.*` | 请求拦截器：捕获开关、路径规则，**自带独立默认值** |
+| `interceptor.*` | 请求拦截器：捕获开关、路径规则、产物格式、是否异步分析，**自带独立默认值** |
 
 四个开关全部默认关闭：`server.enable`（起不起服务）、`beans.enable` / `interceptor.enable`（装不装通道）、
 `interceptor.active`（装好后是否真的捕获，可运行期热改）。`enable` 与 `enabled` 两种写法都认。
@@ -91,8 +91,16 @@ cn:
 | `GET /interceptor` · `.../state` · `.../list` | 拦截器管理页 / 状态 / 产物列表 |
 | `POST /interceptor?active=` | 运行期热改捕获开关与路径 |
 
+表格只列常用入口：`?container=`（注册了多个容器时必填）、`rebuild=true`，以及 `/interceptor` 的 POST 参数
+（`include` / `exclude` / `renderType` / `asyncAnalysis`）、`/interceptor/list` 的 `date` / `limit` 等细节，
+见 `BeansHttpServiceHandler`、`InterceptorHttpServiceHandler` 的类注释。
+
 拦截器通道需要 `interceptor.enable=true` + `interceptor.active=true`；`include-paths` / `exclude-paths`
 用 Ant 风格，按**应用内路径**匹配（不含 contextPath、不含矩阵变量后缀）。
+
+`interceptor.async-analysis` 默认 `false`：分析在请求线程上同步执行（对象简单时开销很小）。开启后分析转到
+独立线程，请求线程立即返回，代价是分析时请求上下文已结束（request scope 不可用）；WebFlux 宿主始终在专用
+线程分析，不受此项控制。产物格式与异步开关可在 `/interceptor` 管理页运行期热切（仅内存态）。
 
 **完整配置项**不在此罗列：jar 内 `analysis/spring/application-analysis.yaml` 是带逐项注释的可复制模板，随包发布。
 

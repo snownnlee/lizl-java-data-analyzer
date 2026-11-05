@@ -59,6 +59,18 @@ class HtmlRenderMarkupTest {
                 "changeDisplayForClassDiv 未调用 stopPropagation，点收起会被标题导航立刻展开");
     }
 
+    @Test
+    @DisplayName("展开型字段不落孤立等号：没有值/大小/内联值时不输出 =（与 HTML2 同口径）")
+    void shouldNotEmitDanglingEqualsForExpandedField() {
+        StringBuilder content = new StringBuilder();
+        JavaDataAnalyzer.runningConfigurer()
+                .addAnalyzingObject(new HolderOfEmptyNested())
+                .run((OutputContentReceiver) content::append);
+
+        assertFalse(content.toString().contains("field_model_info_equal_flag'>="),
+                "字段展开成子节点且没有可显示的值时，不应输出孤立等号");
+    }
+
     private static String renderSample() {
         StringBuilder content = new StringBuilder();
         JavaDataAnalyzer.runningConfigurer()
@@ -119,6 +131,16 @@ class HtmlRenderMarkupTest {
             i = j + 1;
         }
         return broken;
+    }
+
+    @SuppressWarnings("unused")
+    static class HolderOfEmptyNested {
+
+        private EmptyNested nested = new EmptyNested();
+    }
+
+    /** 没有任何实例字段：只会作为子节点被展开，字段本身没有可显示的值 */
+    static class EmptyNested {
     }
 
     @SuppressWarnings("unused")

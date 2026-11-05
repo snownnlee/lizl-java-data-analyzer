@@ -21,11 +21,19 @@ public class ServerProperties {
     /** 配置项前缀。必须是编译期常量：注解属性只接受常量表达式。 */
     public static final String PREFIX = "cn.lizl.java-data-analyzer.server";
 
-    /** 是否启动 HTTP 服务。默认关闭，需显式配 true。 */
+    /**
+     * 是否启动 HTTP 服务。默认关闭，需显式配 true。
+     *
+     * <p>装配与否由启动期条件直接读 Environment（{@code enable}/{@code enabled} 都认），本字段只用于
+     * 绑定与文档；运行期改它不会启停服务。
+     */
     private boolean enable = false;
 
     /** 监听端口；不配置时用 18080，{@code 0} 表示由系统分配。端口被占用会让宿主启动失败（见本类 javadoc）。 */
     private Integer port;
+
+    /** HTTP 请求线程数；不配置时用 4，小于 1 会让宿主启动失败。分析类请求（如 {@code ?rebuild=true}）也占这个池。 */
+    private Integer threads;
 
     /** 绑定地址；不配置时只绑 127.0.0.1。 */
     private String bindAddress;

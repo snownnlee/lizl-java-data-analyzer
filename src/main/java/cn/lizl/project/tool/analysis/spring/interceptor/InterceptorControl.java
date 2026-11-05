@@ -34,6 +34,12 @@ final class InterceptorControl implements InterceptorControlProvider {
     /** 运行时渲染类型，端点上可热切 */
     private volatile RenderType renderType;
 
+    /** 运行期异步分析开关，端点上可热切；初始值取自 interceptor.async-analysis */
+    private volatile boolean asyncAnalysis;
+
+    /** 异步分析线程池：首次真正需要异步时才创建，默认同步配置下不产生线程 */
+    private volatile InterceptorAnalysisExecutor analysisExecutor;
+
     private final InterceptorProperties properties;
 
     private volatile InterceptorRequestAnalyzer analyzer;
@@ -47,8 +53,9 @@ final class InterceptorControl implements InterceptorControlProvider {
         if (properties.getExcludePaths() != null) {
             this.excludePaths = Collections.unmodifiableList(sanitizePaths(properties.getExcludePaths(), "exclude-paths"));
         }
-        // 初始渲染类型从配置读取
+        // 初始渲染类型与异步开关从配置读取
         this.renderType = properties.getRenderType();
+        this.asyncAnalysis = properties.isAsyncAnalysis();
         this.writer = new InterceptorOutputWriter(
                 properties.getOutputQueueCapacity() != null ? properties.getOutputQueueCapacity() : InterceptorOutputWriter.DEFAULT_QUEUE_CAPACITY,
                 properties.getOutputRetention() != null ? properties.getOutputRetention() : InterceptorOutputWriter.DEFAULT_OUTPUT_RETENTION);
@@ -63,6 +70,26 @@ final class InterceptorControl implements InterceptorControlProvider {
     /** 运行时渲染类型 */
     RenderType getRenderType() {
         return renderType;
+    }
+
+    /** 运行时是否异步分析 */
+    boolean isAsyncAnalysis() {
+        return asyncAnalysis;
+    }
+
+    /** 提交一次异步分析；线程池懒创建，队列满时由提交线程自己执行 */
+    void submitAnalysis(Runnable task) {
+        InterceptorAnalysisExecutor executor = analysisExecutor;
+        if (executor == null) {
+            synchronized (this) {
+                executor = analysisExecutor;
+                if (executor == null) {
+                    executor = new InterceptorAnalysisExecutor();
+                    analysisExecutor = executor;
+                }
+            }
+        }
+        executor.submit(task);
     }
 
     /** 黑名单命中或白名单不命中都返回 false；白名单为空表示放行所有 */
@@ -109,6 +136,11 @@ final class InterceptorControl implements InterceptorControlProvider {
     }
 
     void shutdown() {
+        // 先排空分析：排队中的任务还会往写盘队列里塞产物
+        InterceptorAnalysisExecutor executor = analysisExecutor;
+        if (executor != null) {
+            executor.shutdown();
+        }
         writer.shutdown();
     }
 
@@ -124,12 +156,26 @@ final class InterceptorControl implements InterceptorControlProvider {
         state.put("dropped", writer.getDropped());
         state.put("retention", writer.getOutputRetention());
         state.put("renderType", renderType == null ? null : renderType.name());
+        state.put("asyncAnalysis", asyncAnalysis);
         return state;
     }
 
     @Override
     public Map<String, Object> updateInterceptorState(Boolean active, List<String> includePaths,
+                                                      List<String> excludePaths) {
+        return updateInterceptorState(active, includePaths, excludePaths, null, null);
+    }
+
+    @Override
+    public Map<String, Object> updateInterceptorState(Boolean active, List<String> includePaths,
                                                       List<String> excludePaths, String renderType) {
+        return updateInterceptorState(active, includePaths, excludePaths, renderType, null);
+    }
+
+    @Override
+    public Map<String, Object> updateInterceptorState(Boolean active, List<String> includePaths,
+                                                      List<String> excludePaths, String renderType,
+                                                      Boolean asyncAnalysis) {
         if (renderType != null) {
             try {
                 this.renderType = RenderType.valueOf(renderType);
@@ -137,11 +183,9 @@ final class InterceptorControl implements InterceptorControlProvider {
                 throw new IllegalArgumentException("未知渲染类型：" + renderType);
             }
         }
-        return updateInterceptorState(active, includePaths, excludePaths);
-    }
-
-    @Override
-    public Map<String, Object> updateInterceptorState(Boolean active, List<String> includePaths, List<String> excludePaths) {
+        if (asyncAnalysis != null) {
+            this.asyncAnalysis = asyncAnalysis;
+        }
         if (active != null) {
             this.active = active;
         }

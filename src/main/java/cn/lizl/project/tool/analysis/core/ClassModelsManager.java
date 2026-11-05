@@ -108,7 +108,8 @@ class ClassModelsManager extends RunningConfigCapable {
     }
 
     /**
-     * 查「这个类的这个实例」是否已有节点，两步均为 O(1)：先查索引，再查它是否为分析根。
+     * 查「这个类的这个实例」是否已有节点：先按实例哈希定位，再在该实例的节点列表里线性匹配类型
+     * （列表通常只有个位数项），最后查根索引。走的是索引，不退化为全表扫描。
      */
     ClassModel findClassModelByClassAndInstance(Class<?> clazz, Object objectInstance) {
         if (clazz == null) {

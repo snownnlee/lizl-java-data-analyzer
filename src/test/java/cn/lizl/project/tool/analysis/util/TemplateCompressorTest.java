@@ -26,6 +26,13 @@ class TemplateCompressorTest {
 
     private static final String[] TEMPLATE_NAMES = {TEMPLATE_NAME, TEMPLATE2_NAME};
 
+    /**
+     * 两个极简外壳：含内联 {@code <style>}/{@code <script>} 与单行 {@code <pre>}，
+     * 与骨架模板走同一条压缩入口，必须一起守住等价性。
+     */
+    private static final String[] SHELL_TEMPLATE_NAMES = {
+            ResourcePaths.html("puml-shell.html"), ResourcePaths.html("mermaid-shell.html")};
+
     /** 样式与脚本已从模板拆出，压缩的大头其实在这里（名字与 HtmlRender 的常量保持一致） */
     private static final String STYLE_NAME = ResourcePaths.html("tree-style.css");
 
@@ -216,7 +223,18 @@ class TemplateCompressorTest {
     }
 
     @Test
-    @DisplayName("模板不得引入 <pre>/<textarea>（行首空白压缩的前提）")
+    @DisplayName("shell 模板压缩前后除空白与注释外完全等价")
+    void compactKeepsShellSemantics() throws Exception {
+        for (String templateName : SHELL_TEMPLATE_NAMES) {
+            String original = readResource(templateName);
+            String compacted = TemplateCompressor.compact(original);
+
+            assertEquals(normalize(original), normalize(compacted), templateName + " 压缩改动的不只是空白/注释");
+        }
+    }
+
+    @Test
+    @DisplayName("骨架模板不得引入 <pre>/<textarea>（行首空白压缩的前提）")
     void templateHasNoWhiteSpaceSensitiveTags() throws Exception {
         for (String templateName : TEMPLATE_NAMES) {
             String lower = readResource(templateName).toLowerCase();

@@ -102,6 +102,11 @@ abstract class BasePumlRender extends BaseRender {
         return wrapAndColorize(BasePumlRender.COLOR_VALUE, text, BasePumlRender.VALUE_WRAP_WIDTH, true);
     }
 
+    /** 指定颜色与宽度的转义版：info 等非值文本同样不允许内容里的 Creole 标签改写样式 */
+    protected static String wrapEscapedColorize(String color, String text, int width) {
+        return wrapAndColorize(color, text, width, true);
+    }
+
     private static String wrapAndColorize(String color, String text, int width, boolean escape) {
         String singleLine = cleanText(text);
         if (singleLine.isEmpty()) {

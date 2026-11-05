@@ -16,7 +16,7 @@ import java.util.Map;
 public interface InterceptorControlProvider {
 
     /**
-     * 当前状态：捕获开关（键 {@code active}）、路径规则、队列与计数。
+     * 当前状态：捕获开关（键 {@code active}）、路径规则、渲染类型、异步分析开关、队列与计数。
      * 返回的 Map 值只含 Boolean / Number / String / List&lt;String&gt;。
      */
     Map<String, Object> interceptorState();
@@ -42,6 +42,20 @@ public interface InterceptorControlProvider {
             throw new IllegalArgumentException("该实现不支持运行时切换渲染类型：" + renderType);
         }
         return updateInterceptorState(active, includePaths, excludePaths);
+    }
+
+    /**
+     * 同 {@link #updateInterceptorState(Boolean, List, List, String)}，额外支持运行时切换异步分析。
+     *
+     * @param asyncAnalysis null 表示不变，否则设置异步分析开关
+     */
+    default Map<String, Object> updateInterceptorState(Boolean active, List<String> includePaths,
+                                                       List<String> excludePaths, String renderType,
+                                                       Boolean asyncAnalysis) {
+        if (asyncAnalysis != null) {
+            throw new IllegalArgumentException("该实现不支持运行时切换异步分析：" + asyncAnalysis);
+        }
+        return updateInterceptorState(active, includePaths, excludePaths, renderType);
     }
 
     /**

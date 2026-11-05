@@ -295,8 +295,10 @@ public class CommonUtil {
                     break;
                 }
                 String keyText = getStringFrom(entry.getKey(), lengthLimit, maskSensitive, consumeOneShot, path);
+                // 判定用原始 key：keyText 已被 lengthLimit 截断，敏感词落在截断点之后会漏脱敏
+                String rawKey = entry.getKey() == null ? null : String.valueOf(entry.getKey());
                 // 容器内部的 key 渲染层看不到：命中敏感名单时只替换该项的「值」，key 与其它 entry 照常展示
-                String valueText = maskSensitive && isSensitiveName(keyText)
+                String valueText = maskSensitive && isSensitiveName(rawKey)
                         ? SENSITIVE_VALUE_MARK
                         : getStringFrom(entry.getValue(), lengthLimit, maskSensitive, consumeOneShot, path);
                 resultJoiner.add(keyText + "=" + valueText);
