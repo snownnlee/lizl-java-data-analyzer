@@ -35,8 +35,8 @@ build/
 ### Mac OS ###
 .DS_Store
 
-### 本地文档（不纳入版本库） ###
-docs/
+### 本地临时物（草稿、检查报告、产物 HTML 等）统一放 .temp/，不入库
+.temp/
 
 # release 脚本本地令牌
 release.local.json
