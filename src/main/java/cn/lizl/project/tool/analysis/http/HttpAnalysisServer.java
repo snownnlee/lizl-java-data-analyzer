@@ -120,6 +120,9 @@ public final class HttpAnalysisServer {
      *
      * <p>写时复制：复制当前快照、追加，再把字段指向新快照。方法同步只为串行化「读字段—替换」这一段，
      * 读方拿到的是不可变快照，遍历过程不受后续注册影响。
+     *
+     * <p>在服务运行期注册时，追加前会先调 {@link HttpServiceHandler#onStart()}（与启动时的语义一致）；
+     * 抛异常则本次注册不生效，注册表保持原样。
      */
     public synchronized HttpAnalysisServer register(HttpServiceHandler handler) {
         if (handler == null) {
@@ -127,6 +130,9 @@ public final class HttpAnalysisServer {
         }
         if (handlers.contains(handler)) {
             return this;
+        }
+        if (server != null) {
+            handler.onStart();
         }
         List<HttpServiceHandler> updated = new ArrayList<>(handlers.size() + 1);
         updated.addAll(handlers);
@@ -315,6 +321,7 @@ public final class HttpAnalysisServer {
         this.executor = createdExecutor;
         this.boundPort = created.getAddress().getPort();
         try {
+            startHandlers();
             log.info("JavaDataAnalyzer 独立 HTTP 服务已启动 ===> " + logUrl("/")
                     + (token == null ? "" : "（已启用 token 校验；完整带 token 的访问地址请用 getAccessUrl() 获取，不落日志）"));
             if (token == null && basicCredential == null) {
@@ -331,8 +338,9 @@ public final class HttpAnalysisServer {
                 log.warning("HTTP 服务已启动，但没有任何可用通道（" + unavailableSummary() + "）");
             }
         } catch (RuntimeException e) {
-            // 已在监听但收尾失败（处理器扩展点抛异常）：同样不留半启动实例，
-            // 让宿主的启动失败干净落地，而不是留下一个占着端口的孤儿服务
+            // 已在监听但收尾失败（处理器 onStart 或扩展点抛异常）：同样不留半启动实例，
+            // 让宿主的启动失败干净落地，而不是留下一个占着端口的孤儿服务。
+            // 已经回调过 onStart 的处理器由 startHandlers 按相反顺序收尾，这里只管服务本体。
             closeQuietly(created);
             createdExecutor.shutdownNow();
             this.server = null;
@@ -341,6 +349,42 @@ public final class HttpAnalysisServer {
             throw e;
         }
         return this;
+    }
+
+    /**
+     * 按注册顺序回调 {@link HttpServiceHandler#onStart()}。
+     *
+     * <p>任一处理器抛异常时，把已经回调过的按相反顺序 {@link HttpServiceHandler#onStop()} 掉，再原样抛出——
+     * 收掉服务本体与端口由 {@link #start()} 的失败分支负责。这样启动失败不会留下"半个已就绪"的处理器。
+     */
+    private void startHandlers() {
+        List<HttpServiceHandler> started = new ArrayList<>(handlers.size());
+        try {
+            for (HttpServiceHandler handler : handlers) {
+                handler.onStart();
+                started.add(handler);
+            }
+        } catch (RuntimeException e) {
+            stopHandlers(started);
+            throw e;
+        }
+    }
+
+    /**
+     * 按相反顺序回调 {@link HttpServiceHandler#onStop()}：先起来的后停，与 {@link #startHandlers()} 对称。
+     *
+     * <p>单个处理器收尾失败只记日志、不中断其余处理器——资源释放是尽力而为，不能因为一个 handler
+     * 让 {@code stop()} 半途而废。
+     */
+    private void stopHandlers(List<HttpServiceHandler> targets) {
+        for (int i = targets.size() - 1; i >= 0; i--) {
+            HttpServiceHandler handler = targets.get(i);
+            try {
+                handler.onStop();
+            } catch (RuntimeException e) {
+                log.log(Level.WARNING, "处理器停止失败：" + handler.getClass().getName(), e);
+            }
+        }
     }
 
     /** 半启动清理用：{@code stop(0)} 对尚未 start 的实例可能抛异常，这里只做尽力而为 */
@@ -355,14 +399,22 @@ public final class HttpAnalysisServer {
         }
     }
 
+    /**
+     * 停止服务。顺序固定：先停止接收新请求并关掉请求线程池，再按注册顺序的相反顺序回调
+     * {@link HttpServiceHandler#onStop()}，让处理器有机会释放自己（及其 provider）的资源。
+     *
+     * <p>未启动时调用是空操作；处理器收尾异常只记日志。停止后可以再次 {@link #start()}，
+     * 处理器会重新收到 {@link HttpServiceHandler#onStart()}。
+     */
     public synchronized void stop() {
         if (server == null) {
             return;
         }
         try {
             server.stop(0);
-            log.info("JavaDataAnalyzer 独立 HTTP 服务已停止（端口 " + getBoundPort() + "）");
         } finally {
+            log.info("JavaDataAnalyzer 独立 HTTP 服务已停止（端口 " + getBoundPort() + "）");
+            stopHandlers(handlers);
             server = null;
             boundPort = -1;
             if (executor != null) {

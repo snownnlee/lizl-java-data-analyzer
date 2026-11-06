@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -60,6 +61,9 @@ public final class BeansHttpServiceHandler implements HttpServiceHandler {
      */
     private final Map<String, AnalysisProvider> providers = Collections.synchronizedMap(new LinkedHashMap<>());
 
+    /** 生命周期开关：已随服务器启动且尚未停止时为 true，运行期增删容器要立刻补回调 */
+    private volatile boolean started;
+
     private volatile byte[] listTemplateBytes;
 
     private volatile byte[] containersTemplateBytes;
@@ -85,10 +89,14 @@ public final class BeansHttpServiceHandler implements HttpServiceHandler {
     /**
      * 追加或替换一个聚合容器，注册名取自 {@link AnalysisProvider#getName()}；同名后登记者覆盖先登记者。
      *
+     * <p>生命周期跟随本处理器：处理器已启动时新容器立即收到 {@link AnalysisProvider#onStart()}（失败则本次
+     * 登记不生效，注册表与旧容器都保持原样）；被同名覆盖或经 {@link #removeProvider} 下线的旧容器会收到
+     * {@link AnalysisProvider#onStop()}，不需要调用方再手工释放。
+     *
      * @param provider 容器的数据提供者，不能为 null（运行期下线用 {@link #removeProvider(String)}）
      * @return this，便于链式调用
      */
-    public BeansHttpServiceHandler addProvider(AnalysisProvider provider) {
+    public synchronized BeansHttpServiceHandler addProvider(AnalysisProvider provider) {
         if (provider == null) {
             throw new IllegalArgumentException("provider 不能为 null，下线容器请用 removeProvider");
         }
@@ -96,21 +104,84 @@ public final class BeansHttpServiceHandler implements HttpServiceHandler {
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("容器名不能为空：" + provider.getClass().getName());
         }
-        providers.put(name.trim(), provider);
+        // 先启动再发布：onStart 失败时注册表没有任何改动，覆盖场景下旧容器也不会被误停
+        if (started) {
+            provider.onStart();
+        }
+        AnalysisProvider replaced = providers.put(name.trim(), provider);
+        if (replaced != null && replaced != provider) {
+            stopQuietly(replaced);
+        }
         return this;
     }
 
     /**
      * 移除一个聚合容器（运行期下线）；名字不存在或为空白时不做任何事。
      *
+     * <p>本处理器已启动时，被移除的容器会收到 {@link AnalysisProvider#onStop()}，资源由它自己释放。
+     *
      * @param name 容器注册名，即 {@link AnalysisProvider#getName()}
      * @return this，便于链式调用
      */
-    public BeansHttpServiceHandler removeProvider(String name) {
-        if (name != null && !name.trim().isEmpty()) {
-            providers.remove(name.trim());
+    public synchronized BeansHttpServiceHandler removeProvider(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return this;
+        }
+        AnalysisProvider removed = providers.remove(name.trim());
+        if (removed != null && started) {
+            stopQuietly(removed);
         }
         return this;
+    }
+
+    /**
+     * 处理器启动：把生命周期同步给全部聚合容器。
+     *
+     * <p>任一容器 {@link AnalysisProvider#onStart()} 抛异常时，已启动的按相反顺序 {@code onStop} 掉再抛出，
+     * 由服务器把整次启动判为失败——不留"半个容器已就绪"的中间态。
+     */
+    @Override
+    public synchronized void onStart() {
+        if (started) {
+            return;
+        }
+        List<AnalysisProvider> ordered = new ArrayList<>(providersSnapshot().values());
+        List<AnalysisProvider> startedProviders = new ArrayList<>(ordered.size());
+        try {
+            for (AnalysisProvider provider : ordered) {
+                provider.onStart();
+                startedProviders.add(provider);
+            }
+        } catch (RuntimeException e) {
+            stopProviders(startedProviders);
+            throw e;
+        }
+        started = true;
+    }
+
+    /** 处理器停止：按注册顺序的相反顺序通知容器释放资源，随后可再次 {@link #onStart()} */
+    @Override
+    public synchronized void onStop() {
+        if (!started) {
+            return;
+        }
+        started = false;
+        stopProviders(new ArrayList<>(providersSnapshot().values()));
+    }
+
+    /** 反序收尾；单个容器失败只记日志，不阻断其余容器 */
+    private void stopProviders(List<AnalysisProvider> targets) {
+        for (int i = targets.size() - 1; i >= 0; i--) {
+            stopQuietly(targets.get(i));
+        }
+    }
+
+    private void stopQuietly(AnalysisProvider provider) {
+        try {
+            provider.onStop();
+        } catch (RuntimeException e) {
+            LOG.log(Level.WARNING, "容器停止失败：" + provider.getName(), e);
+        }
     }
 
     @Override

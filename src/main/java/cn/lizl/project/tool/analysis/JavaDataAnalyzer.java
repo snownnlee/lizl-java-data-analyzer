@@ -38,7 +38,8 @@ public final class JavaDataAnalyzer {
 
     /**
      * 创建基于 JDK 原生 HttpServer 的独立 HTTP 服务，预挂 beans 通道。返回的实例默认未启动，
-     * 用完调 {@code stop()} 释放端口。
+     * 用完调 {@code stop()} 释放端口——处理器与 provider 的资源（重算线程池等）由服务代为收尾，
+     * 不需要再单独 {@code close()} provider。
      *
      * <p>便捷组装层：服务器本身只认识 {@code HttpServiceHandler}，beans 概念由这里与
      * {@link BeansHttpServiceHandler} 承接。要挂多个聚合容器、或在运行期增删容器，请自行创建并注册

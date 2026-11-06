@@ -3,6 +3,7 @@ package cn.lizl.project.tool.analysis.spring.beans;
 import cn.lizl.project.tool.analysis.api.OutputFileReceiver;
 import cn.lizl.project.tool.analysis.api.RunningConfigurer;
 import cn.lizl.project.tool.analysis.http.AnalysisProvider;
+import cn.lizl.project.tool.analysis.http.BeansHttpServiceHandler;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
@@ -61,11 +62,14 @@ public class SpringBeansAnalysisProvider
 
     private final AtomicInteger counter = new AtomicInteger(0);
 
-    private final ExecutorService executorService = Executors.newSingleThreadExecutor(r -> {
-        Thread thread = new Thread(r, "lizl-java-data-analyzer");
-        thread.setDaemon(true);
-        return thread;
-    });
+    /**
+     * 分析线程池。随服务启停重建：{@link #onStop()} 关掉并置 {@link #stopped}，停止期间不再新建线程；
+     * {@link #onStart()} 复位后按需重建，因此 HTTP 服务反复启停不影响本容器。
+     */
+    private ExecutorService executorService = newExecutor();
+
+    /** 已停止标记：停止期间不新建线程池，也不会把任务提交进已关闭的池 */
+    private volatile boolean stopped;
 
     private final RunningConfigurer runningConfigurer;
 
@@ -215,7 +219,10 @@ public class SpringBeansAnalysisProvider
         AnalysisFactory existing = replaceExisting ? null : beanNameToAnalysisFactoryMap.get(beanName);
         AnalysisFactory analysisFactory = existing != null ? existing : register(bean, beanName);
         if (!properties.isLazy()) {
-            executorService.execute(analysisFactory::doAnalyze);
+            ExecutorService current = executor();
+            if (current != null) {
+                current.execute(analysisFactory::doAnalyze);
+            }
         }
     }
 
@@ -244,7 +251,10 @@ public class SpringBeansAnalysisProvider
     @Override
     public List<String> getBeanNames(boolean rebuild) {
         if (rebuild) {
-            executorService.execute(() -> beanNameToAnalysisFactoryMap.values().forEach(AnalysisFactory::doAnalyze));
+            ExecutorService current = executor();
+            if (current != null) {
+                current.execute(() -> beanNameToAnalysisFactoryMap.values().forEach(AnalysisFactory::doAnalyze));
+            }
         }
         return new ArrayList<>(beanNameOrder);
     }
@@ -264,9 +274,61 @@ public class SpringBeansAnalysisProvider
         return resultFile;
     }
 
+    /**
+     * Spring 容器销毁回调，等同 {@link #onStop()}：两条收尾链（容器关闭、HTTP 服务停止）落到同一处，
+     * 重复调用无副作用。
+     */
     @Override
     public void destroy() {
-        executorService.shutdown();
+        onStop();
+    }
+
+    /**
+     * 停止本容器：关掉分析线程池。之后 {@link #getAnalyzedResult} 仍可同步分析，只是不再有后台任务。
+     *
+     * <p>由 {@link BeansHttpServiceHandler} 随 HTTP 服务停止调用；Spring 容器关闭时由 {@link #destroy()} 调用。
+     */
+    @Override
+    public void onStop() {
+        ExecutorService current;
+        synchronized (this) {
+            stopped = true;
+            current = executorService;
+            executorService = null;
+        }
+        if (current != null) {
+            // 优雅停止：正在跑的分析写完产物再退出，避免容器关闭时留下截断的报告
+            // （与原先 DisposableBean.destroy() 的口径一致；手工停止服务也走这里）
+            current.shutdown();
+        }
+    }
+
+    /** 重新启用：复位停止标记并确保线程池可用（已关闭的按需重建，且不会立刻建线程） */
+    @Override
+    public void onStart() {
+        synchronized (this) {
+            stopped = false;
+        }
+        executor();
+    }
+
+    /** 取当前可用的分析线程池；已停止时返回 null，调用方跳过后台任务 */
+    private synchronized ExecutorService executor() {
+        if (stopped) {
+            return null;
+        }
+        if (executorService == null || executorService.isShutdown()) {
+            executorService = newExecutor();
+        }
+        return executorService;
+    }
+
+    private static ExecutorService newExecutor() {
+        return Executors.newSingleThreadExecutor(r -> {
+            Thread thread = new Thread(r, "lizl-java-data-analyzer");
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     private class AnalysisFactory {

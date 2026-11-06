@@ -44,4 +44,23 @@ public interface AnalysisProvider {
     default String getDisplayName() {
         return null;
     }
+
+    /**
+     * 被处理器接纳时的回调，由 {@link BeansHttpServiceHandler} 驱动：处理器已在运行就立即调用，
+     * 否则等处理器 {@link HttpServiceHandler#onStart()} 时统一调用。
+     *
+     * <p>用于把本容器的资源（重算线程池等）申请出来，与服务启停同步。默认空实现，需幂等：
+     * 同一实例可能随服务反复启停。
+     */
+    default void onStart() {
+    }
+
+    /**
+     * 被处理器移除或处理器停止时的回调，由 {@link BeansHttpServiceHandler} 调用，用于释放线程池等资源。
+     *
+     * <p>与 {@link #onStart()} 对称，需幂等；抛异常只记日志、不阻断其它容器的收尾。
+     * 默认空实现——注意默认实现不释放任何资源，持有线程或文件句柄的实现必须覆盖它。
+     */
+    default void onStop() {
+    }
 }

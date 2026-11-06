@@ -9,9 +9,9 @@ import java.util.Collection;
 /**
  * 一个可挂载到 {@link HttpAnalysisServer} 的服务处理器。
  *
- * <p>一个处理器负责一组请求（例如 beans 通道的 {@code /beans} 与 {@code /bean/*}）。服务器只做四件事：
- * 鉴权、跨站写校验、按 {@link #supports} 把请求分给处理器、渲染根路径索引页。新增一种服务 = 实现本接口
- * + 注册一次，<b>不需要改服务器</b>。
+ * <p>一个处理器负责一组请求（例如 beans 通道的 {@code /beans} 与 {@code /bean/*}）。服务器只做五件事：
+ * 鉴权、跨站写校验、按 {@link #supports} 把请求分给处理器、渲染根路径索引页、按启停回调
+ * {@link #onStart()} / {@link #onStop()}。新增一种服务 = 实现本接口 + 注册一次，<b>不需要改服务器</b>。
  *
  * <p>实现方只需关心"这个请求该不该我处理、该返回什么"，鉴权、安全响应头、token 透传都不用管：
  * 请求到达 {@link #handle} 之前已经过统一鉴权，响应建议统一走 {@link HttpResponses}。
@@ -102,6 +102,32 @@ public interface HttpServiceHandler {
      */
     default IndexCard indexCard() {
         return null;
+    }
+
+    /**
+     * 服务启动完成后的回调，由 {@link HttpAnalysisServer#start()} 在监听成功后按注册顺序调用，
+     * 运行期新注册的处理器则在 {@link HttpAnalysisServer#register} 里立即补调一次。
+     *
+     * <p>用途是把处理器（以及它持有的 provider）的资源生命周期挂到服务上：服务起来时申请、停止时释放，
+     * 不必让使用者记着手动收尾。默认空实现。
+     *
+     * <p>本方法抛异常会让整次启动失败：服务器把已经回调过的处理器按相反顺序 {@link #onStop()}，
+     * 再关掉自己并把异常原样抛给调用方。因此这里只做"服务要能用就必须成功"的初始化。
+     *
+     * <p>同一实例可能被反复启停（{@code start()} 失败回滚后重试、{@code stop()} 后再次 {@code start()}），
+     * 实现需幂等。
+     */
+    default void onStart() {
+    }
+
+    /**
+     * 服务停止后的回调，由 {@link HttpAnalysisServer#stop()} 在关闭监听与请求线程池后，按注册顺序的
+     * 相反顺序调用（先起来的后停）。
+     *
+     * <p>实现应在此释放线程池、文件句柄等资源。抛异常只记日志、不阻断其它处理器收尾，也不会让
+     * {@code stop()} 失败。与 {@link #onStart()} 对称，需幂等。
+     */
+    default void onStop() {
     }
 
     /** 索引页卡片文案。链接不在这里，由服务器拼。 */

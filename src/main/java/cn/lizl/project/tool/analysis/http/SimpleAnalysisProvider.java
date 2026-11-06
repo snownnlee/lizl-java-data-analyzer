@@ -25,6 +25,9 @@ import java.util.logging.Logger;
  * <p>行为约定：{@code add} 只登记，首次访问 {@code /bean/{name}} 时才分析并落盘；configurer 是单个可变
  * 实例，因此所有分析串行执行，且每次分析前都会 {@code clear()}，不要在外并发复用同一个 configurer。
  *
+ * <p>生命周期跟随挂载它的 {@link BeansHttpServiceHandler}：HTTP 服务停止时自动收到 {@link #onStop()}
+ * 关掉重算线程池，再次启动时 {@link #onStart()} 重建，不需要手工 {@code close()}（保留是为了兼容手工用法）。
+ *
  * @see HttpAnalysisServer
  */
 public class SimpleAnalysisProvider implements AnalysisProvider, AutoCloseable {
@@ -57,11 +60,14 @@ public class SimpleAnalysisProvider implements AnalysisProvider, AutoCloseable {
 
     private final Object analyzeLock = new Object();
 
-    private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "lizl-java-data-analyzer-manual");
-        thread.setDaemon(true);
-        return thread;
-    });
+    /**
+     * 批量重算线程池。惰性创建、随服务启停重建：{@link #onStop()} 关掉它并置 {@link #stopped}，
+     * 停止期间不再新建线程；{@link #onStart()} 复位后按需重建，因此同一个实例可以跟着服务反复启停。
+     */
+    private ExecutorService executor;
+
+    /** 已停止标记：停止期间不新建线程池，避免"关掉的服务又重新冒出线程" */
+    private volatile boolean stopped;
 
     /**
      * @param name       容器注册名（{@link #getName()}），非空白；出现在 {@code ?container=} 与容器选择页
@@ -189,20 +195,70 @@ public class SimpleAnalysisProvider implements AnalysisProvider, AutoCloseable {
     }
 
     /**
-     * 关闭内部重算线程池。关闭后仍可同步分析（{@code /bean/{name}} 照常可用），
+     * 停止本容器：关闭内部重算线程池。之后仍可同步分析（{@code /bean/{name}} 照常可用），
      * 只是 {@code rebuild=true} 不再触发后台批量重算。
+     *
+     * <p>通常由 {@link BeansHttpServiceHandler} 随 HTTP 服务停止自动调用，不需要手工收尾；
+     * 重复调用无副作用。
      */
     @Override
+    public void onStop() {
+        ExecutorService current;
+        synchronized (this) {
+            stopped = true;
+            current = executor;
+            executor = null;
+        }
+        if (current != null) {
+            current.shutdownNow();
+        }
+    }
+
+    /**
+     * 重新启用本容器：复位停止标记并确保重算线程池可用（已关闭的会重建）。
+     *
+     * <p>线程池按需建线程，这里只是准备好容器，不会立刻创建线程。
+     */
+    @Override
+    public void onStart() {
+        synchronized (this) {
+            stopped = false;
+        }
+        executor();
+    }
+
+    /** 等同 {@link #onStop()}：保留 {@link AutoCloseable} 语义，手工使用时仍可 try-with-resources */
+    @Override
     public void close() {
-        executor.shutdownNow();
+        onStop();
+    }
+
+    /** 取当前可用的重算线程池；已停止时返回 null，调用方据此跳过后台任务 */
+    private synchronized ExecutorService executor() {
+        if (stopped) {
+            return null;
+        }
+        if (executor == null || executor.isShutdown()) {
+            executor = Executors.newSingleThreadExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "lizl-java-data-analyzer-manual");
+                thread.setDaemon(true);
+                return thread;
+            });
+        }
+        return executor;
     }
 
     private void submitReanalyze(List<Entry> snapshot) {
         if (snapshot.isEmpty()) {
             return;
         }
+        ExecutorService current = executor();
+        if (current == null) {
+            log.log(Level.FINE, "提供者已停止，忽略批量重算请求");
+            return;
+        }
         try {
-            executor.execute(() -> {
+            current.execute(() -> {
                 for (Entry entry : snapshot) {
                     analyze(entry);
                 }
