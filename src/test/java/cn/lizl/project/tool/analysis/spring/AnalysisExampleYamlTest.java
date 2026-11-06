@@ -73,6 +73,8 @@ class AnalysisExampleYamlTest {
         assertEquals(0, interceptor.getExcludePaths().size());
         assertEquals(Integer.valueOf(5), interceptor.getMaxDepth());
         assertEquals(Integer.valueOf(64), interceptor.getOutputQueueCapacity());
+        assertEquals(Integer.valueOf(64), interceptor.getAnalysisQueueCapacity());
+        assertEquals(Integer.valueOf(256), interceptor.getReactiveAnalysisQueueCapacity());
         assertEquals(Integer.valueOf(3000), interceptor.getOutputRetention());
         assertEquals("./analysis-output/interceptor", interceptor.getOutputRootDir());
         assertFalse(interceptor.isAsyncAnalysis(), "interceptor.async-analysis 默认同步分析");

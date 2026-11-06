@@ -104,6 +104,8 @@ cn:
         include-paths:                              # Ant 风格白名单；不配置或空 = 拦截所有请求；下面一条是示例
         exclude-paths:                              # Ant 风格黑名单；优先于白名单
         output-queue-capacity: 64                   # 异步写盘队列容量；默认 64，满载短等待后降级为调用线程同步落盘（产物不丢）
+        analysis-queue-capacity: 64                 # MVC 异步分析队列容量（只作用于 async-analysis=true 时创建的线程池）；默认 64，<1 视为非法回落默认并告警；启动期固定，不支持热改
+        reactive-analysis-queue-capacity: 256       # WebFlux 分析队列容量（该通道始终在专用线程分析）；默认 256，<1 同上；启动期固定
         output-retention: 3000                      # 每个日期目录各自保留的产物上限；默认 3000，≤0 不限制
         output-root-dir: ./analysis-output/interceptor  # 本通道产物根目录（其下按日期建子目录）；默认 ~/cn.lizl.project.tool.analysis-result/interceptor
         render-type: HTML2                          # 产物格式，不配置则默认 HTML2

@@ -42,9 +42,10 @@ final class ReactiveArgumentCaptureInstaller implements BeanPostProcessor {
     private static final String[] RESOLVER_LIST_FIELDS = {"requestMappingResolvers", "modelAttributeResolvers"};
 
     /**
-     * 分析队列容量：积压超限时降级为调用线程同步分析（背压，保证先于业务执行），不丢任务
+     * 分析队列容量默认值：积压超限时降级为调用线程同步分析（背压，保证先于业务执行），不丢任务。
+     * 实际取值由 {@code interceptor.reactive-analysis-queue-capacity} 决定，未配置或非法时用本值。
      */
-    static final int ANALYSIS_QUEUE_CAPACITY = 256;
+    static final int DEFAULT_QUEUE_CAPACITY = 256;
 
     private final Logger log = Logger.getLogger(getClass().getName());
 
@@ -61,31 +62,35 @@ final class ReactiveArgumentCaptureInstaller implements BeanPostProcessor {
     private final AtomicLong callerRunCount = new AtomicLong();
 
     /**
-     * 分析专用线程：串行化 + 隔离事件循环。队列有界（{@value #ANALYSIS_QUEUE_CAPACITY}），
-     * 满载降级为在调用线程同步执行（背压）——**有意设计**：分析必须先于业务代码执行，
+     * 分析专用线程：串行化 + 隔离事件循环。队列有界（容量由 {@code interceptor.reactive-analysis-queue-capacity}
+     * 决定），满载降级为在调用线程同步执行（背压）——**有意设计**：分析必须先于业务代码执行，
      * 挪到别的线程会让被捕获对象先被业务改掉而失去分析意义；极端积压时由请求线程
      * 短暂分担分析（受 analysisTimeoutMillis 兜底），限频告警提示容量不够用。
+     *
+     * <p>容量在构造时定型：运行期改配置不会重建线程池（重建会丢排队中的分析）。
      */
-    private final ThreadPoolExecutor analysisExecutor = new ThreadPoolExecutor(
-            1, 1, 0L, TimeUnit.MILLISECONDS,
-            new ArrayBlockingQueue<>(ANALYSIS_QUEUE_CAPACITY),
-            runnable -> {
-                Thread thread = new Thread(runnable, ThreadNames.of("reactive-analysis"));
-                thread.setDaemon(true);
-                return thread;
-            },
-            (runnable, executor) -> {
-                long callerRuns = callerRunCount.incrementAndGet();
-                if (callerRuns == 1 || callerRuns % 100 == 0) {
-                    log.warning("WebFlux 请求分析队列已满，累计 " + callerRuns + " 次降级为调用线程同步分析（不丢任务）");
-                }
-                if (!executor.isShutdown()) {
-                    runnable.run();
-                }
-            });
+    private final ThreadPoolExecutor analysisExecutor;
 
-    ReactiveArgumentCaptureInstaller(Supplier<InterceptorControl> controlSupplier) {
+    ReactiveArgumentCaptureInstaller(Supplier<InterceptorControl> controlSupplier, int analysisQueueCapacity) {
         this.controlSupplier = controlSupplier;
+        this.analysisExecutor = new ThreadPoolExecutor(
+                1, 1, 0L, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(analysisQueueCapacity),
+                runnable -> {
+                    Thread thread = new Thread(runnable, ThreadNames.of("reactive-analysis"));
+                    thread.setDaemon(true);
+                    return thread;
+                },
+                (runnable, executor) -> {
+                    long callerRuns = callerRunCount.incrementAndGet();
+                    if (callerRuns == 1 || callerRuns % 100 == 0) {
+                        log.warning("WebFlux 请求分析队列已满，累计 " + callerRuns
+                                + " 次降级为调用线程同步分析（不丢任务）");
+                    }
+                    if (!executor.isShutdown()) {
+                        runnable.run();
+                    }
+                });
     }
 
     /**

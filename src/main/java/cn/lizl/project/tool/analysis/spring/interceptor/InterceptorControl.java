@@ -40,6 +40,11 @@ final class InterceptorControl implements InterceptorControlProvider {
     /** 异步分析线程池：首次真正需要异步时才创建，默认同步配置下不产生线程 */
     private volatile InterceptorAnalysisExecutor analysisExecutor;
 
+    /**
+     * MVC 异步分析队列容量：启动期解析一次即固定（配置非法时此处就会打出 WARN），线程池懒创建时直接用。
+     */
+    private final int analysisQueueCapacity;
+
     private final InterceptorProperties properties;
 
     private volatile InterceptorRequestAnalyzer analyzer;
@@ -56,6 +61,8 @@ final class InterceptorControl implements InterceptorControlProvider {
         // 初始渲染类型与异步开关从配置读取
         this.renderType = properties.getRenderType();
         this.asyncAnalysis = properties.isAsyncAnalysis();
+        // 容量在这里定型：非法配置在启动期就打出 WARN，运行期改配置不会重建线程池
+        this.analysisQueueCapacity = properties.resolveAnalysisQueueCapacity();
         this.writer = new InterceptorOutputWriter(
                 properties.getOutputQueueCapacity() != null ? properties.getOutputQueueCapacity() : InterceptorOutputWriter.DEFAULT_QUEUE_CAPACITY,
                 properties.getOutputRetention() != null ? properties.getOutputRetention() : InterceptorOutputWriter.DEFAULT_OUTPUT_RETENTION);
@@ -84,7 +91,7 @@ final class InterceptorControl implements InterceptorControlProvider {
             synchronized (this) {
                 executor = analysisExecutor;
                 if (executor == null) {
-                    executor = new InterceptorAnalysisExecutor();
+                    executor = new InterceptorAnalysisExecutor(analysisQueueCapacity);
                     analysisExecutor = executor;
                 }
             }

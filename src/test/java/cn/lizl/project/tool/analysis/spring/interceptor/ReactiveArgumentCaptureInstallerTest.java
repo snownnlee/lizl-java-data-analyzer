@@ -135,8 +135,12 @@ class ReactiveArgumentCaptureInstallerTest {
     @Test
     @DisplayName("队列满载时降级为调用线程同步执行，任务一个不丢")
     void shouldNotLoseTasksWhenQueueFull() throws Exception {
-        ReactiveArgumentCaptureInstaller installer = newInstaller(enabledProperties());
+        InterceptorProperties properties = enabledProperties();
+        properties.setReactiveAnalysisQueueCapacity(4);
+        ReactiveArgumentCaptureInstaller installer = newInstaller(properties);
         java.util.concurrent.ThreadPoolExecutor executor = analysisExecutorOf(installer);
+        int queueCapacity = executor.getQueue().remainingCapacity();
+        assertEquals(4, queueCapacity, "容量应取自 interceptor.reactive-analysis-queue-capacity");
         try {
             java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
             java.util.concurrent.CountDownLatch workerBusy = new java.util.concurrent.CountDownLatch(1);
@@ -153,7 +157,7 @@ class ReactiveArgumentCaptureInstallerTest {
             });
             assertTrue(workerBusy.await(2, java.util.concurrent.TimeUnit.SECONDS), "worker 应已开始执行");
 
-            for (int i = 0; i < ReactiveArgumentCaptureInstaller.ANALYSIS_QUEUE_CAPACITY; i++) {
+            for (int i = 0; i < queueCapacity; i++) {
                 executor.execute(executed::incrementAndGet);
             }
 
@@ -168,10 +172,10 @@ class ReactiveArgumentCaptureInstallerTest {
             // 释放 worker，排空队列后全部任务都应被执行（不丢）
             release.countDown();
             long deadline = System.currentTimeMillis() + 5000;
-            while (System.currentTimeMillis() < deadline && executed.get() < ReactiveArgumentCaptureInstaller.ANALYSIS_QUEUE_CAPACITY) {
+            while (System.currentTimeMillis() < deadline && executed.get() < queueCapacity) {
                 Thread.sleep(20);
             }
-            assertEquals(ReactiveArgumentCaptureInstaller.ANALYSIS_QUEUE_CAPACITY, executed.get(),
+            assertEquals(queueCapacity, executed.get(),
                     "队列中的任务在排空后应全部执行完毕，一个不丢");
         } finally {
             installer.shutdown();
@@ -203,11 +207,13 @@ class ReactiveArgumentCaptureInstallerTest {
     }
 
     private ReactiveArgumentCaptureInstaller newInstaller(InterceptorProperties properties) {
-        return new ReactiveArgumentCaptureInstaller(() -> new InterceptorControl(properties));
+        return new ReactiveArgumentCaptureInstaller(() -> new InterceptorControl(properties),
+                properties.resolveReactiveAnalysisQueueCapacity());
     }
 
     private ReactiveArgumentCaptureInstaller newInstaller(InterceptorControl control) {
-        return new ReactiveArgumentCaptureInstaller(() -> control);
+        return new ReactiveArgumentCaptureInstaller(() -> control,
+                ReactiveArgumentCaptureInstaller.DEFAULT_QUEUE_CAPACITY);
     }
 
     /** 构建 reactive adapter：注入最小 context 并完成初始化（解析器列表就位） */

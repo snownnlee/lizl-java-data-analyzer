@@ -102,8 +102,11 @@ public class InterceptorAutoConfiguration {
     static class InterceptorWebFluxConfiguration {
 
         @Bean
-        static ReactiveArgumentCaptureInstaller reactiveArgumentCaptureInstaller(ObjectProvider<InterceptorControl> interceptorControl) {
-            return new ReactiveArgumentCaptureInstaller(interceptorControl::getIfAvailable);
+        static ReactiveArgumentCaptureInstaller reactiveArgumentCaptureInstaller(
+                ObjectProvider<InterceptorControl> interceptorControl, InterceptorProperties properties) {
+            // 队列容量在这里定型：安装器构造时创建线程池，之后不再变化
+            return new ReactiveArgumentCaptureInstaller(interceptorControl::getIfAvailable,
+                    properties.resolveReactiveAnalysisQueueCapacity());
         }
     }
 }

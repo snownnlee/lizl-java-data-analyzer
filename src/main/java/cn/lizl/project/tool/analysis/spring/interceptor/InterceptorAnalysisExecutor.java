@@ -17,7 +17,10 @@ import java.util.logging.Logger;
  */
 final class InterceptorAnalysisExecutor {
 
-    /** 与写盘队列同量级：排队的是待分析的对象图，容量即内存里最多压多少份请求入参 */
+    /**
+     * 队列容量默认值：与写盘队列同量级，排队的是待分析的对象图，容量即内存里最多压多少份请求入参。
+     * 实际取值由 {@code interceptor.analysis-queue-capacity} 决定，未配置或非法时用本值。
+     */
     static final int DEFAULT_QUEUE_CAPACITY = 64;
 
     /** 停机等待上限：超时强制打断，避免拖住上下文关闭 */
@@ -30,9 +33,9 @@ final class InterceptorAnalysisExecutor {
 
     private final ThreadPoolExecutor executor;
 
-    InterceptorAnalysisExecutor() {
+    InterceptorAnalysisExecutor(int queueCapacity) {
         this.executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<>(DEFAULT_QUEUE_CAPACITY),
+                new ArrayBlockingQueue<>(queueCapacity),
                 runnable -> {
                     Thread thread = new Thread(runnable, ThreadNames.of("interceptor-analysis"));
                     thread.setDaemon(true);

@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 /**
@@ -73,6 +74,21 @@ public class InterceptorProperties {
      */
     private boolean asyncAnalysis;
 
+    /**
+     * MVC 异步分析队列容量，只作用于 {@code async-analysis=true} 时懒创建的那个线程池（当前为 64）。
+     *
+     * <p>小于 1 视为非法：回落默认值并打一条 WARN。容量在启动期固定——线程池创建后无法调整，
+     * 改这项只能重启应用。
+     */
+    private Integer analysisQueueCapacity;
+
+    /**
+     * WebFlux 分析队列容量（当前为 256）。该通道始终在专用线程分析，因此本项与 {@code async-analysis} 无关。
+     *
+     * <p>小于 1 视为非法：回落默认值并打一条 WARN。同样在启动期固定。
+     */
+    private Integer reactiveAnalysisQueueCapacity;
+
     /** 产物是否内联样式/脚本资源：单文件自包含但体积更大；默认 false，按同目录 sidecar 分发 */
     private Boolean inlineAssets;
 
@@ -117,6 +133,36 @@ public class InterceptorProperties {
 
     /** 空白字符串视为未配置 */
     private static final Pattern WHITESPACE_ONLY = Pattern.compile("\\s*");
+
+    private static final Logger LOG = Logger.getLogger(InterceptorProperties.class.getName());
+
+    /**
+     * 解析 MVC 异步分析队列的实际容量：未配置用默认值；非法值（{@code < 1}）回落默认值并打 WARN。
+     */
+    public int resolveAnalysisQueueCapacity() {
+        return resolveQueueCapacity("analysis-queue-capacity", analysisQueueCapacity,
+                InterceptorAnalysisExecutor.DEFAULT_QUEUE_CAPACITY);
+    }
+
+    /**
+     * 解析 WebFlux 分析队列的实际容量：未配置用默认值；非法值（{@code < 1}）回落默认值并打 WARN。
+     */
+    public int resolveReactiveAnalysisQueueCapacity() {
+        return resolveQueueCapacity("reactive-analysis-queue-capacity", reactiveAnalysisQueueCapacity,
+                ReactiveArgumentCaptureInstaller.DEFAULT_QUEUE_CAPACITY);
+    }
+
+    private int resolveQueueCapacity(String key, Integer configured, int defaultValue) {
+        if (configured == null) {
+            return defaultValue;
+        }
+        if (configured < 1) {
+            LOG.warning("interceptor." + key + "=" + configured + " 非法（至少为 1），已回落默认值 "
+                    + defaultValue + "；容量在启动期固定，需要调整请改配置后重启");
+            return defaultValue;
+        }
+        return configured;
+    }
 
     /**
      * 把本通道配置重放到 {@code configurer} 上（覆盖式：只改本通道显式配置的项）。

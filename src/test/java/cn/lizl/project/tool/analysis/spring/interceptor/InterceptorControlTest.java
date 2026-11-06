@@ -10,6 +10,9 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -176,6 +179,62 @@ class InterceptorControlTest {
             control.updateInterceptorState(null, null, null, null, false);
             assertFalse(control.isAsyncAnalysis(), "应能切回同步");
         } finally {
+            control.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("分析队列容量可配置：未配置用默认值，非法值回落默认")
+    void shouldResolveAnalysisQueueCapacityWithFallback() {
+        InterceptorProperties properties = baseProperties(true);
+
+        assertEquals(InterceptorAnalysisExecutor.DEFAULT_QUEUE_CAPACITY, properties.resolveAnalysisQueueCapacity(),
+                "未配置用默认 64");
+        assertEquals(ReactiveArgumentCaptureInstaller.DEFAULT_QUEUE_CAPACITY,
+                properties.resolveReactiveAnalysisQueueCapacity(), "未配置用默认 256");
+
+        properties.setAnalysisQueueCapacity(8);
+        properties.setReactiveAnalysisQueueCapacity(1024);
+        assertEquals(8, properties.resolveAnalysisQueueCapacity());
+        assertEquals(1024, properties.resolveReactiveAnalysisQueueCapacity());
+
+        properties.setAnalysisQueueCapacity(0);
+        properties.setReactiveAnalysisQueueCapacity(-1);
+        assertEquals(InterceptorAnalysisExecutor.DEFAULT_QUEUE_CAPACITY, properties.resolveAnalysisQueueCapacity(),
+                "<1 视为非法，回落默认");
+        assertEquals(ReactiveArgumentCaptureInstaller.DEFAULT_QUEUE_CAPACITY,
+                properties.resolveReactiveAnalysisQueueCapacity(), "<1 视为非法，回落默认");
+    }
+
+    @Test
+    @DisplayName("analysis-queue-capacity 生效：队列占满后回落到调用线程同步执行")
+    void shouldFallBackToCallerThreadWhenAnalysisQueueIsFull() throws Exception {
+        InterceptorProperties properties = baseProperties(true);
+        properties.setAsyncAnalysis(true);
+        properties.setAnalysisQueueCapacity(1);
+        InterceptorControl control = new InterceptorControl(properties);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            // 占住唯一的工作线程：后面的提交只能排队或被拒
+            control.submitAnalysis(() -> {
+                started.countDown();
+                try {
+                    release.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            assertTrue(started.await(5, TimeUnit.SECONDS), "分析线程应已开始执行");
+
+            control.submitAnalysis(() -> { });   // 占满容量为 1 的队列
+            String callerThread = Thread.currentThread().getName();
+            AtomicReference<String> runner = new AtomicReference<>();
+            control.submitAnalysis(() -> runner.set(Thread.currentThread().getName()));
+
+            assertEquals(callerThread, runner.get(), "队列满时应由调用线程执行，不丢任务");
+        } finally {
+            release.countDown();
             control.shutdown();
         }
     }
