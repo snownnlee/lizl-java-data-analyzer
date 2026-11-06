@@ -64,6 +64,8 @@ class PumlHtmlRenderTest {
         assertTrue(html.contains("\"@startuml\""), "PUML 起始标记应作为带引号的字符串出现在数组里");
         assertTrue(html.contains("\"@enduml\""), "PUML 结束标记应作为带引号的字符串出现在数组里");
         assertTrue(html.contains("\"diagram\""), "render 的第二个参数应是容器 id");
+        assertTrue(html.contains("{maxSvgSize: 0}"),
+                "必须放开引擎的 8192px 尺寸上限：对象图摊平成类图很容易超限，超限时引擎抛异常、页面不出图");
         assertTrue(html.contains("id=\"diagram\""), "容器元素缺失，渲染没有落点");
         // 数组里若出现裸 < 且紧跟 / ，浏览器会提前闭合 script 标签
         int arrayStart = html.indexOf("PlantUML.render([");

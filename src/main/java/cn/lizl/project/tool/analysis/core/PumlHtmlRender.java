@@ -11,6 +11,11 @@ import java.util.stream.Stream;
  * PUML 转 HTML：PUML 文本嵌入极简 HTML，由浏览器端 PlantUML 官方 JS 引擎渲染成 SVG。
  * 引擎默认以 sidecar 放产物同目录，开启 {@code inlineAssets} 时内联；两种形态都不联网、
  * 双击 {@code file://} 可出图，本库对 PlantUML 零 Java 依赖。
+ *
+ * <p>模板调用写成 {@code PlantUML.render(lines, "diagram", options)}，第三个参数把引擎默认的 8192px
+ * 尺寸检查关掉（{@code maxSvgSize} 传 0）：对象图摊平成类图很容易超宽，超限时引擎抛
+ * {@code RuntimeException}（{@code Diagram too large for browser rendering}）且整张图都不出。
+ * 产物总量交给分析侧的深度 / 节点数 / 排除包控制，而不是让页面停在渲染这一步。
  */
 class PumlHtmlRender extends BaseRender {
 

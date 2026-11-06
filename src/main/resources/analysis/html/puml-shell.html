@@ -34,7 +34,8 @@ ${pumlTag}
     if (!window.PlantUML) {
         document.getElementById("diagram").innerHTML = "<pre style='color:#ff6b6b'>未找到 ${pumlName}，请确认它与本文件在同一目录</pre>";
     } else {
-        PlantUML.render(${pumlArray}, "diagram");
+        // 第三个参数是引擎选项：maxSvgSize 默认 8192px，超限时引擎抛异常且不出图；0 表示关闭该检查
+        PlantUML.render(${pumlArray}, "diagram", {maxSvgSize: 0});
     }
 </script>
 </body>
