@@ -4,6 +4,7 @@ import cn.lizl.project.tool.analysis.api.OutputFileReceiver;
 import cn.lizl.project.tool.analysis.api.RunningConfigurer;
 import cn.lizl.project.tool.analysis.http.AnalysisProvider;
 import cn.lizl.project.tool.analysis.http.BeansHttpServiceHandler;
+import cn.lizl.project.tool.analysis.util.ThreadNames;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
@@ -39,7 +40,7 @@ import java.util.logging.Logger;
  *
  * <p>登记时机由 {@code beans.eager-to-analyze} 决定：初始化即登记，或等全部单例就绪后统一补扫
  * （补扫用于覆盖早于本类创建、BPP 看不到的基础设施 Bean）。分析在单线程守护线程上串行执行
- * （线程名 {@code lizl-java-data-analyzer}），不与业务争用线程池。
+ * （线程名 {@code lizl-java-data-analyzer-analysis-SpringBeans}），不与业务争用线程池。
  */
 public class SpringBeansAnalysisProvider
         implements EnvironmentAware, ApplicationContextAware, BeanFactoryAware,
@@ -325,7 +326,7 @@ public class SpringBeansAnalysisProvider
 
     private static ExecutorService newExecutor() {
         return Executors.newSingleThreadExecutor(r -> {
-            Thread thread = new Thread(r, "lizl-java-data-analyzer");
+            Thread thread = new Thread(r, ThreadNames.of("analysis", ANALYSIS_PROVIDER_NAME));
             thread.setDaemon(true);
             return thread;
         });

@@ -1,5 +1,7 @@
 package cn.lizl.project.tool.analysis.spring.interceptor;
 
+import cn.lizl.project.tool.analysis.util.ThreadNames;
+
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +34,7 @@ final class InterceptorAnalysisExecutor {
         this.executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
                 new ArrayBlockingQueue<>(DEFAULT_QUEUE_CAPACITY),
                 runnable -> {
-                    Thread thread = new Thread(runnable, "lizl-java-data-analyzer-interceptor-analysis");
+                    Thread thread = new Thread(runnable, ThreadNames.of("interceptor-analysis"));
                     thread.setDaemon(true);
                     return thread;
                 },

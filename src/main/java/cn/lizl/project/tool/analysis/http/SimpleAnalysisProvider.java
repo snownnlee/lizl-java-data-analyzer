@@ -2,6 +2,7 @@ package cn.lizl.project.tool.analysis.http;
 
 import cn.lizl.project.tool.analysis.api.OutputFileReceiver;
 import cn.lizl.project.tool.analysis.api.RunningConfigurer;
+import cn.lizl.project.tool.analysis.util.ThreadNames;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -240,7 +241,7 @@ public class SimpleAnalysisProvider implements AnalysisProvider, AutoCloseable {
         }
         if (executor == null || executor.isShutdown()) {
             executor = Executors.newSingleThreadExecutor(runnable -> {
-                Thread thread = new Thread(runnable, "lizl-java-data-analyzer-manual");
+                Thread thread = new Thread(runnable, ThreadNames.of("analysis", name));
                 thread.setDaemon(true);
                 return thread;
             });

@@ -1,5 +1,6 @@
 package cn.lizl.project.tool.analysis.spring.interceptor;
 
+import cn.lizl.project.tool.analysis.util.ThreadNames;
 import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.core.MethodParameter;
@@ -69,7 +70,7 @@ final class ReactiveArgumentCaptureInstaller implements BeanPostProcessor {
             1, 1, 0L, TimeUnit.MILLISECONDS,
             new ArrayBlockingQueue<>(ANALYSIS_QUEUE_CAPACITY),
             runnable -> {
-                Thread thread = new Thread(runnable, "lizl-java-data-analyzer-reactive-analysis");
+                Thread thread = new Thread(runnable, ThreadNames.of("reactive-analysis"));
                 thread.setDaemon(true);
                 return thread;
             },

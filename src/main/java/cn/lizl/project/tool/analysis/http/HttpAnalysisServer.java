@@ -1,5 +1,6 @@
 package cn.lizl.project.tool.analysis.http;
 
+import cn.lizl.project.tool.analysis.util.ThreadNames;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
@@ -305,7 +306,8 @@ public final class HttpAnalysisServer {
         ExecutorService createdExecutor = null;
         try {
             created = HttpServer.create(new InetSocketAddress(bindAddress, port), 0);
-            createdExecutor = Executors.newFixedThreadPool(threads, new DaemonThreadFactory());
+            createdExecutor = Executors.newFixedThreadPool(threads,
+                    new DaemonThreadFactory(created.getAddress().getPort()));
             created.setExecutor(createdExecutor);
             created.createContext(pathPrefix.isEmpty() ? "/" : pathPrefix, this::handle);
             created.start();
@@ -707,13 +709,22 @@ public final class HttpAnalysisServer {
         return prefix;
     }
 
+    /**
+     * 请求线程工厂：线程名带上实际监听端口，同一个 JVM 里起两台服务（端口 0 由系统分配的场景）也能分清。
+     */
     private static final class DaemonThreadFactory implements ThreadFactory {
+
+        private final int port;
 
         private final AtomicInteger counter = new AtomicInteger(0);
 
+        DaemonThreadFactory(int port) {
+            this.port = port;
+        }
+
         @Override
         public Thread newThread(Runnable runnable) {
-            Thread thread = new Thread(runnable, "lizl-java-data-analyzer-http-" + counter.incrementAndGet());
+            Thread thread = new Thread(runnable, ThreadNames.of("http", port, counter.incrementAndGet()));
             thread.setDaemon(true);
             return thread;
         }

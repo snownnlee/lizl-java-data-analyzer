@@ -3,6 +3,7 @@ package cn.lizl.project.tool.analysis.spring.interceptor;
 import cn.lizl.project.tool.analysis.util.CommonUtil;
 import cn.lizl.project.tool.analysis.util.FrontendAssets;
 import cn.lizl.project.tool.analysis.util.HtmlTreeAssets;
+import cn.lizl.project.tool.analysis.util.ThreadNames;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -78,7 +79,7 @@ final class InterceptorOutputWriter {
     InterceptorOutputWriter(int queueCapacity, int outputRetention) {
         this.queue = new ArrayBlockingQueue<>(Math.max(1, queueCapacity));
         this.outputRetention = outputRetention;
-        this.worker = new Thread(this::drain, "lizl-java-data-analyzer-interceptor-writer");
+        this.worker = new Thread(this::drain, ThreadNames.of("interceptor-writer"));
         this.worker.setDaemon(true);
         this.worker.start();
     }

@@ -10,6 +10,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -126,6 +128,31 @@ class HttpLifecycleTest {
         } finally {
             server.stop();
         }
+    }
+
+    @Test
+    @DisplayName("请求线程名带角色与实际监听端口，thread dump 里能定位到具体服务")
+    void shouldNameRequestThreadsWithRoleAndPort() throws IOException {
+        List<String> handledBy = new ArrayList<>();
+        HttpAnalysisServer server = new HttpAnalysisServer()
+                .register(new ProbeHandler(handledBy))
+                .setPort(0)
+                .start();
+        int port = server.getBoundPort();
+        try {
+            HttpURLConnection connection = (HttpURLConnection) new URL(
+                    "http://127.0.0.1:" + port + HttpAnalysisServer.DEFAULT_PATH_PREFIX + "/probe").openConnection();
+            try {
+                assertEquals(200, connection.getResponseCode());
+            } finally {
+                connection.disconnect();
+            }
+        } finally {
+            server.stop();
+        }
+
+        assertEquals(1, handledBy.size());
+        assertEquals("lizl-java-data-analyzer-http-" + port + "-1", handledBy.get(0));
     }
 
     @Test
@@ -258,5 +285,43 @@ class HttpLifecycleTest {
     static class Sample {
 
         String value = "demo";
+    }
+
+    /** 记录处理请求的线程名，用于断言请求线程命名 */
+    private static final class ProbeHandler implements HttpServiceHandler {
+
+        private static final Collection<String> PROBE_PREFIXES = Collections.singletonList("/probe");
+
+        private final List<String> handledBy;
+
+        ProbeHandler(List<String> handledBy) {
+            this.handledBy = handledBy;
+        }
+
+        @Override
+        public String getEntryPath() {
+            return "/probe";
+        }
+
+        @Override
+        public Collection<String> getPathPrefixes() {
+            return PROBE_PREFIXES;
+        }
+
+        @Override
+        public boolean isAvailable() {
+            return true;
+        }
+
+        @Override
+        public String unavailableMessage() {
+            return "unavailable";
+        }
+
+        @Override
+        public void handle(HttpExchange exchange, String relativePath) throws IOException {
+            handledBy.add(Thread.currentThread().getName());
+            HttpResponses.text(exchange, 200, "ok");
+        }
     }
 }
